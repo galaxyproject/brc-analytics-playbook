@@ -1,0 +1,168 @@
+# Deploy Playbook - Full deployment
+# Clones repo, builds catalog, obtains SSL cert, starts services
+#
+# Usage: make deploy
+---
+- name: Deploy BRC Analytics
+  hosts: all
+  become: true
+
+  tasks:
+    # Clone/update repository
+    - name: Clone or update repository
+      ansible.builtin.git:
+        repo: "{{ brc_repo_url }}"
+        dest: "{{ brc_deploy_dir }}"
+        version: "{{ brc_repo_branch }}"
+        force: false
+      become_user: "{{ brc_user }}"
+
+    # Install npm dependencies
+    - name: Install npm dependencies
+      ansible.builtin.command:
+        cmd: npm ci
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      register: npm_install
+      changed_when: "'added' in npm_install.stdout"
+
+    # Build catalog data
+    - name: Build catalog data
+      ansible.builtin.command:
+        cmd: npm run build-brc-db
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      register: catalog_build
+      changed_when: true
+
+    # Template backend .env file
+    - name: Template backend environment file
+      ansible.builtin.template:
+        src: templates/api.env.j2
+        dest: "{{ brc_backend_dir }}/api/.env"
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0600"
+
+    # Template docker-compose override for SSL ports
+    - name: Template docker-compose override
+      ansible.builtin.template:
+        src: templates/docker-compose.override.yml.j2
+        dest: "{{ brc_backend_dir }}/docker-compose.override.yml"
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0644"
+
+    # SSL Certificate
+    - name: Check if SSL certificate exists
+      ansible.builtin.stat:
+        path: "{{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem"
+      register: ssl_cert_stat
+
+    - name: Obtain SSL certificate via certbot
+      ansible.builtin.command:
+        cmd: >
+          certbot certonly --standalone
+          --non-interactive
+          --agree-tos
+          --email {{ ssl_cert_email }}
+          --domain {{ brc_domain }}
+      when: not ssl_cert_stat.stat.exists
+      register: certbot_result
+
+    # Template nginx SSL configuration
+    - name: Create nginx SSL config directory
+      ansible.builtin.file:
+        path: "{{ brc_backend_dir }}/nginx-ssl"
+        state: directory
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0755"
+
+    - name: Template nginx SSL configuration
+      ansible.builtin.template:
+        src: templates/nginx-ssl.conf.j2
+        dest: "{{ brc_backend_dir }}/nginx-ssl/default.conf"
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0644"
+
+    # Build Docker images
+    - name: Build Docker images
+      ansible.builtin.command:
+        cmd: docker compose build
+        chdir: "{{ brc_backend_dir }}"
+      become_user: "{{ brc_user }}"
+      environment:
+        APP_VERSION: "{{ lookup('file', brc_deploy_dir + '/package.json') | from_json | json_query('version') }}"
+      register: docker_build
+      changed_when: "'Successfully built' in docker_build.stdout or 'exporting to image' in docker_build.stdout"
+
+    # Start services
+    - name: Start Docker services
+      ansible.builtin.command:
+        cmd: docker compose up -d
+        chdir: "{{ brc_backend_dir }}"
+      become_user: "{{ brc_user }}"
+      register: docker_up
+      changed_when: "'Started' in docker_up.stderr or 'Creating' in docker_up.stderr"
+
+    # Wait for health check
+    - name: Wait for services to be healthy
+      ansible.builtin.uri:
+        url: "{{ health_check_url }}"
+        validate_certs: false
+        status_code: 200
+      register: health_result
+      until: health_result.status == 200
+      retries: "{{ health_check_retries }}"
+      delay: "{{ health_check_delay }}"
+
+    # Set up certificate renewal
+    - name: Create certbot renewal systemd timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/certbot-renew.timer
+        content: |
+          [Unit]
+          Description=Run certbot twice daily
+
+          [Timer]
+          OnCalendar=*-*-* 00,12:00:00
+          RandomizedDelaySec=43200
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+        mode: "0644"
+
+    - name: Create certbot renewal systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/certbot-renew.service
+        content: |
+          [Unit]
+          Description=Certbot renewal
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "cd {{ brc_backend_dir }} && docker compose restart nginx"
+        mode: "0644"
+
+    - name: Enable certbot renewal timer
+      ansible.builtin.systemd:
+        name: certbot-renew.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Display deployment completion message
+      ansible.builtin.debug:
+        msg: |
+          Deployment complete!
+
+          Service URL: https://{{ brc_domain }}
+          Health check: {{ health_check_url }}
+
+          Useful commands:
+          - View logs: make logs
+          - Check status: make status
+          - Update: make update

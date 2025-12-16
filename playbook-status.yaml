@@ -1,0 +1,102 @@
+# Status Playbook - Check service status
+# Reports on Docker services, health, certificates, and disk usage
+#
+# Usage: make status
+---
+- name: Check BRC Analytics status
+  hosts: all
+  become: true
+
+  tasks:
+    # Docker service status
+    - name: Check Docker service
+      ansible.builtin.systemd:
+        name: docker
+      register: docker_service
+
+    - name: Display Docker service status
+      ansible.builtin.debug:
+        msg: "Docker service: {{ docker_service.status.ActiveState }}"
+
+    # Container status
+    - name: Get container status
+      ansible.builtin.command:
+        cmd: docker compose ps --format json
+        chdir: "{{ brc_backend_dir }}"
+      become_user: "{{ brc_user }}"
+      register: container_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display container status
+      ansible.builtin.debug:
+        msg: "{{ container_status.stdout }}"
+      when: container_status.rc == 0
+
+    # Health check
+    - name: Check API health endpoint
+      ansible.builtin.uri:
+        url: "{{ health_check_url }}"
+        validate_certs: false
+        status_code:
+          - 200
+          - -1  # Allow connection failures
+      register: health_check
+      failed_when: false
+
+    - name: Display health check result
+      ansible.builtin.debug:
+        msg: "Health check: {{ 'HEALTHY' if health_check.status == 200 else 'UNHEALTHY - ' + (health_check.msg | default('Unknown error')) }}"
+
+    # SSL certificate expiry
+    - name: Check SSL certificate expiry
+      ansible.builtin.command:
+        cmd: certbot certificates --domain {{ brc_domain }}
+      register: cert_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display certificate status
+      ansible.builtin.debug:
+        msg: "{{ cert_status.stdout_lines | default(['No certificate found']) }}"
+
+    # Disk usage
+    - name: Get disk usage for deploy directory
+      ansible.builtin.command:
+        cmd: du -sh {{ brc_deploy_dir }}
+      register: deploy_disk
+      changed_when: false
+
+    - name: Get Docker disk usage
+      ansible.builtin.command:
+        cmd: docker system df
+      register: docker_disk
+      changed_when: false
+
+    - name: Display disk usage
+      ansible.builtin.debug:
+        msg: |
+          Deploy directory: {{ deploy_disk.stdout }}
+
+          Docker disk usage:
+          {{ docker_disk.stdout }}
+
+    # Summary
+    - name: Display summary
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          BRC Analytics Status Summary
+          ============================================
+          Host: {{ brc_domain }}
+          Environment: {{ brc_environment }}
+          URL: https://{{ brc_domain }}
+
+          Docker: {{ docker_service.status.ActiveState }}
+          API Health: {{ 'HEALTHY' if health_check.status == 200 else 'UNHEALTHY' }}
+
+          Useful commands:
+          - View logs: make logs
+          - Update: make update
+          - Restart: cd {{ brc_backend_dir }} && docker compose restart
+          ============================================

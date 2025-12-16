@@ -1,0 +1,130 @@
+# Update Playbook - Update existing deployment
+# Pulls latest changes, rebuilds if needed, restarts services
+#
+# Usage: make update
+---
+- name: Update BRC Analytics deployment
+  hosts: all
+  become: true
+
+  tasks:
+    # Pull latest changes
+    - name: Pull latest changes from repository
+      ansible.builtin.git:
+        repo: "{{ brc_repo_url }}"
+        dest: "{{ brc_deploy_dir }}"
+        version: "{{ brc_repo_branch }}"
+        force: false
+      become_user: "{{ brc_user }}"
+      register: git_pull
+
+    # Check if catalog source changed
+    - name: Check for catalog source changes
+      ansible.builtin.command:
+        cmd: git diff --name-only HEAD@{1} HEAD -- catalog/source/
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      register: catalog_changes
+      changed_when: false
+      failed_when: false
+      when: git_pull.changed
+
+    # Rebuild catalog if source changed
+    - name: Rebuild catalog data (if source changed)
+      ansible.builtin.command:
+        cmd: npm run build-brc-db
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      when: git_pull.changed and catalog_changes.stdout | length > 0
+      register: catalog_rebuild
+
+    # Update npm dependencies if package-lock changed
+    - name: Check for package-lock changes
+      ansible.builtin.command:
+        cmd: git diff --name-only HEAD@{1} HEAD -- package-lock.json
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      register: npm_changes
+      changed_when: false
+      failed_when: false
+      when: git_pull.changed
+
+    - name: Update npm dependencies (if package-lock changed)
+      ansible.builtin.command:
+        cmd: npm ci
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      when: git_pull.changed and npm_changes.stdout | length > 0
+
+    # Re-template configuration files
+    - name: Template backend environment file
+      ansible.builtin.template:
+        src: templates/api.env.j2
+        dest: "{{ brc_backend_dir }}/api/.env"
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0600"
+      register: env_template
+
+    - name: Template docker-compose override
+      ansible.builtin.template:
+        src: templates/docker-compose.override.yml.j2
+        dest: "{{ brc_backend_dir }}/docker-compose.override.yml"
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0644"
+      register: compose_template
+
+    - name: Template nginx SSL configuration
+      ansible.builtin.template:
+        src: templates/nginx-ssl.conf.j2
+        dest: "{{ brc_backend_dir }}/nginx-ssl/default.conf"
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0644"
+      register: nginx_template
+
+    # Rebuild Docker images
+    - name: Rebuild Docker images
+      ansible.builtin.command:
+        cmd: docker compose build
+        chdir: "{{ brc_backend_dir }}"
+      become_user: "{{ brc_user }}"
+      environment:
+        APP_VERSION: "{{ lookup('file', brc_deploy_dir + '/package.json') | from_json | json_query('version') }}"
+      when: git_pull.changed
+      register: docker_build
+
+    # Restart services
+    - name: Restart services
+      ansible.builtin.command:
+        cmd: docker compose up -d --force-recreate
+        chdir: "{{ brc_backend_dir }}"
+      become_user: "{{ brc_user }}"
+      when: git_pull.changed or env_template.changed or compose_template.changed or nginx_template.changed
+      register: docker_restart
+
+    # Wait for health check
+    - name: Wait for services to be healthy
+      ansible.builtin.uri:
+        url: "{{ health_check_url }}"
+        validate_certs: false
+        status_code: 200
+      register: health_result
+      until: health_result.status == 200
+      retries: "{{ health_check_retries }}"
+      delay: "{{ health_check_delay }}"
+      when: docker_restart.changed | default(false)
+
+    # Report status
+    - name: Report update status
+      ansible.builtin.debug:
+        msg: |
+          Update complete!
+
+          Changes:
+          - Repository updated: {{ git_pull.changed }}
+          - Catalog rebuilt: {{ catalog_rebuild.changed | default(false) }}
+          - Services restarted: {{ docker_restart.changed | default(false) }}
+
+          Service URL: https://{{ brc_domain }}

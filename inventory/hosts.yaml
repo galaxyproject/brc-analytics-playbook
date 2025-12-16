@@ -1,0 +1,25 @@
+# BRC Analytics Inventory
+#
+# This inventory is designed for LOCAL execution on each VM.
+# The playbook runs on the same machine where ansible-playbook is invoked.
+# Use --limit=$(hostname --fqdn) to target the current host.
+
+all:
+  vars:
+    # Execute locally (no SSH)
+    ansible_connection: local
+    # Use sudo for privilege escalation
+    ansible_become: true
+
+  children:
+    production:
+      hosts:
+        brc-analytics.tacc.utexas.edu:
+          brc_environment: production
+          brc_domain: brc-analytics.tacc.utexas.edu
+
+    development:
+      hosts:
+        brc-analytics-dev.tacc.utexas.edu:
+          brc_environment: development
+          brc_domain: brc-analytics-dev.tacc.utexas.edu

@@ -1,0 +1,27 @@
+# Ansible vault password
+.vault-password.txt
+
+# Retry files
+*.retry
+.retry/
+
+# Python virtual environment
+venv/
+.venv/
+ansible/
+
+# Collections and roles installed via Galaxy
+collections/
+roles/geerlingguy.*
+roles/community.*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

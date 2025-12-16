@@ -1,0 +1,44 @@
+# Shared variables for all hosts
+---
+
+# Application
+brc_app_name: brc-analytics
+brc_repo_url: https://github.com/galaxyproject/brc-analytics.git
+brc_repo_branch: main
+
+# Paths
+brc_deploy_dir: /opt/brc-analytics
+brc_backend_dir: "{{ brc_deploy_dir }}/backend"
+brc_catalog_dir: "{{ brc_deploy_dir }}/catalog"
+
+# Service user
+brc_user: brc-analytics
+brc_group: brc-analytics
+
+# Docker
+docker_compose_project: brc-analytics
+
+# Node.js version for catalog builds
+nodejs_version: "20"
+
+# SSL/TLS
+ssl_cert_dir: /etc/letsencrypt/live
+ssl_cert_email: admin@example.com  # Override in environment-specific vars
+
+# Ports (nginx listens on these)
+http_port: 80
+https_port: 443
+
+# Health check
+health_check_url: "https://localhost/api/v1/health"
+health_check_retries: 30
+health_check_delay: 10
+
+# Redis
+redis_maxmemory: 256mb
+redis_maxmemory_policy: allkeys-lru
+
+# Backend API settings (non-sensitive)
+api_log_level: INFO
+api_rate_limit_requests: 100
+api_rate_limit_window: 60

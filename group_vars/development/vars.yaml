@@ -1,0 +1,13 @@
+# Development-specific variables
+---
+
+brc_environment: development
+
+# Track main branch in development
+brc_repo_branch: main
+
+# API settings - more verbose logging in dev
+api_log_level: DEBUG
+
+# SSL certificate email
+ssl_cert_email: "{{ vault_ssl_cert_email | default('admin@brc-analytics-dev.tacc.utexas.edu') }}"

@@ -1,0 +1,183 @@
+# Bootstrap Playbook - Initial system setup
+# Run once on a fresh VM to prepare for deployment
+#
+# Usage: make bootstrap
+---
+- name: Bootstrap BRC Analytics server
+  hosts: all
+  become: true
+
+  tasks:
+    # System packages
+    - name: Install required system packages
+      ansible.builtin.package:
+        name:
+          - curl
+          - git
+          - ca-certificates
+          - gnupg
+          - lsb-release
+        state: present
+
+    # Docker installation (RHEL/CentOS/Rocky)
+    - name: Check if Docker is installed
+      ansible.builtin.command: docker --version
+      register: docker_check
+      changed_when: false
+      failed_when: false
+
+    - name: Install Docker (if not present)
+      when: docker_check.rc != 0
+      block:
+        - name: Add Docker repository (RHEL-based)
+          ansible.builtin.yum_repository:
+            name: docker-ce
+            description: Docker CE Stable
+            baseurl: https://download.docker.com/linux/centos/$releasever/$basearch/stable
+            gpgcheck: true
+            gpgkey: https://download.docker.com/linux/centos/gpg
+            enabled: true
+          when: ansible_os_family == "RedHat"
+
+        - name: Install Docker packages (RHEL-based)
+          ansible.builtin.dnf:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-compose-plugin
+            state: present
+          when: ansible_os_family == "RedHat"
+
+        - name: Install Docker (Debian-based)
+          when: ansible_os_family == "Debian"
+          block:
+            - name: Add Docker GPG key
+              ansible.builtin.apt_key:
+                url: https://download.docker.com/linux/ubuntu/gpg
+                state: present
+
+            - name: Add Docker repository
+              ansible.builtin.apt_repository:
+                repo: "deb https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+                state: present
+
+            - name: Install Docker packages
+              ansible.builtin.apt:
+                name:
+                  - docker-ce
+                  - docker-ce-cli
+                  - containerd.io
+                  - docker-compose-plugin
+                state: present
+                update_cache: true
+
+    - name: Enable and start Docker service
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    # Service user
+    - name: Create application group
+      ansible.builtin.group:
+        name: "{{ brc_group }}"
+        system: true
+        state: present
+
+    - name: Create application user
+      ansible.builtin.user:
+        name: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        groups: docker
+        system: true
+        shell: /bin/bash
+        home: "/home/{{ brc_user }}"
+        create_home: true
+        state: present
+
+    # Deployment directory
+    - name: Create deployment directory
+      ansible.builtin.file:
+        path: "{{ brc_deploy_dir }}"
+        state: directory
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0755"
+
+    # Node.js installation (for catalog builds)
+    - name: Check if Node.js is installed
+      ansible.builtin.command: node --version
+      register: node_check
+      changed_when: false
+      failed_when: false
+
+    - name: Install Node.js (if not present)
+      when: node_check.rc != 0
+      block:
+        - name: Install NodeSource repository (RHEL-based)
+          ansible.builtin.shell: |
+            curl -fsSL https://rpm.nodesource.com/setup_{{ nodejs_version }}.x | bash -
+          args:
+            creates: /etc/yum.repos.d/nodesource-el*.repo
+          when: ansible_os_family == "RedHat"
+
+        - name: Install Node.js (RHEL-based)
+          ansible.builtin.dnf:
+            name: nodejs
+            state: present
+          when: ansible_os_family == "RedHat"
+
+        - name: Install NodeSource repository (Debian-based)
+          ansible.builtin.shell: |
+            curl -fsSL https://deb.nodesource.com/setup_{{ nodejs_version }}.x | bash -
+          args:
+            creates: /etc/apt/sources.list.d/nodesource.list
+          when: ansible_os_family == "Debian"
+
+        - name: Install Node.js (Debian-based)
+          ansible.builtin.apt:
+            name: nodejs
+            state: present
+            update_cache: true
+          when: ansible_os_family == "Debian"
+
+    # Certbot for Let's Encrypt
+    - name: Install certbot
+      ansible.builtin.package:
+        name:
+          - certbot
+        state: present
+
+    # Firewall configuration (if firewalld is running)
+    - name: Check if firewalld is running
+      ansible.builtin.systemd:
+        name: firewalld
+      register: firewalld_status
+      failed_when: false
+
+    - name: Open HTTP/HTTPS ports in firewall
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        state: enabled
+        immediate: true
+      loop:
+        - "80/tcp"
+        - "443/tcp"
+      when: firewalld_status.status.ActiveState == "active"
+
+    - name: Display bootstrap completion message
+      ansible.builtin.debug:
+        msg: |
+          Bootstrap complete!
+
+          Next steps:
+          1. Run 'make deploy' to deploy the application
+
+          Installed:
+          - Docker and docker-compose plugin
+          - Node.js {{ nodejs_version }}
+          - Certbot for SSL certificates
+          - Service user: {{ brc_user }}
+          - Deploy directory: {{ brc_deploy_dir }}

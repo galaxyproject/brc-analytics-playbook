@@ -1,0 +1,17 @@
+# Docker Compose Override - SSL Configuration
+# Managed by Ansible - do not edit manually
+#
+# This overrides the base docker-compose.yml to:
+# - Expose ports 80/443 instead of 8080
+# - Mount SSL certificates
+# - Mount custom nginx SSL configuration
+---
+services:
+  nginx:
+    ports:
+      - "{{ http_port }}:80"
+      - "{{ https_port }}:443"
+    volumes:
+      - ./nginx-ssl/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - {{ ssl_cert_dir }}/{{ brc_domain }}:/etc/letsencrypt/live/{{ brc_domain }}:ro
+      - /etc/letsencrypt/archive/{{ brc_domain }}:/etc/letsencrypt/archive/{{ brc_domain }}:ro
