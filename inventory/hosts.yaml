@@ -14,7 +14,7 @@ all:
   children:
     production:
       hosts:
-        brc-analytics.tacc.utexas.edu:
+        brc-analytics-prod.tacc.utexas.edu:
           brc_environment: production
           brc_domain: platform.brc-analytics.org
 
