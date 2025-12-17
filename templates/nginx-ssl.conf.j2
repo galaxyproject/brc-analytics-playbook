@@ -25,8 +25,8 @@ server {
     server_name {{ brc_domain }};
 
     # SSL certificates
-    ssl_certificate /etc/letsencrypt/live/{{ brc_domain }}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/{{ brc_domain }}/privkey.pem;
+    ssl_certificate {{ ssl_cert_path }};
+    ssl_certificate_key {{ ssl_key_path }};
 
     # SSL settings
     ssl_session_timeout 1d;

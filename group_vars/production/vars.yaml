@@ -9,9 +9,5 @@ brc_repo_branch: production
 # API settings
 api_log_level: WARNING
 
-# Use self-signed for now until certs are added to vault
-# Change to 'vault' once certs are generated and added
-ssl_mode: self_signed
-
-# SSL certificate email (for Let's Encrypt notifications if using that mode)
-ssl_cert_email: "{{ vault_ssl_cert_email | default('admin@brc-analytics.tacc.utexas.edu') }}"
+# SSL certificates are managed by TACC NSO (ssl_mode: system)
+# Cert paths are defined in inventory/hosts.yaml per host

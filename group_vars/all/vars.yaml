@@ -22,6 +22,8 @@ docker_compose_project: brc-analytics
 nodejs_version: "20"
 
 # SSL/TLS
+# ssl_mode options: system (use existing certs), vault (from ansible vault), self_signed, letsencrypt
+ssl_mode: system
 ssl_cert_dir: /etc/letsencrypt/live
 ssl_cert_email: admin@example.com  # Override in environment-specific vars
 
