@@ -3,11 +3,14 @@
 
 brc_environment: production
 
-# Use release tags in production (or main for now)
-brc_repo_branch: main
+# Production deploys from the 'production' branch
+brc_repo_branch: production
 
 # API settings
 api_log_level: WARNING
+
+# Use Let's Encrypt for production (requires ports 80/443 open)
+ssl_mode: letsencrypt
 
 # SSL certificate email
 ssl_cert_email: "{{ vault_ssl_cert_email | default('admin@brc-analytics.tacc.utexas.edu') }}"

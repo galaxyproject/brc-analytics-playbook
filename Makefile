@@ -106,3 +106,7 @@ help:
 	@echo ""
 	@echo "Subsequent updates:"
 	@echo "  make update"
+	@echo ""
+	@echo "Branch deployment:"
+	@echo "  Dev VM deploys 'main' branch"
+	@echo "  Prod VM deploys 'production' branch"
