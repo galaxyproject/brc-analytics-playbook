@@ -16,10 +16,10 @@ all:
       hosts:
         brc-analytics.tacc.utexas.edu:
           brc_environment: production
-          brc_domain: brc-analytics.tacc.utexas.edu
+          brc_domain: platform.brc-analytics.org
 
     development:
       hosts:
         brc-analytics-dev.tacc.utexas.edu:
           brc_environment: development
-          brc_domain: brc-analytics-dev.tacc.utexas.edu
+          brc_domain: platform-dev.brc-analytics.org
