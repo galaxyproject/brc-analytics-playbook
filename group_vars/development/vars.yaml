@@ -9,5 +9,8 @@ brc_repo_branch: main
 # API settings - more verbose logging in dev
 api_log_level: DEBUG
 
-# SSL certificate email
+# Use self-signed SSL until firewall is configured for Let's Encrypt
+ssl_mode: self_signed
+
+# SSL certificate email (used if switching to letsencrypt)
 ssl_cert_email: "{{ vault_ssl_cert_email | default('admin@brc-analytics-dev.tacc.utexas.edu') }}"

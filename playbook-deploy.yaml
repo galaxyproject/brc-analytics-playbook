@@ -53,12 +53,30 @@
         group: "{{ brc_group }}"
         mode: "0644"
 
-    # SSL Certificate
+    # SSL Certificate - Let's Encrypt or self-signed
     - name: Check if SSL certificate exists
       ansible.builtin.stat:
         path: "{{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem"
       register: ssl_cert_stat
 
+    # Self-signed certificate (when ssl_mode is self_signed or firewall blocks Let's Encrypt)
+    - name: Create SSL certificate directory
+      ansible.builtin.file:
+        path: "{{ ssl_cert_dir }}/{{ brc_domain }}"
+        state: directory
+        mode: "0755"
+      when: ssl_mode | default('letsencrypt') == 'self_signed' and not ssl_cert_stat.stat.exists
+
+    - name: Generate self-signed SSL certificate
+      ansible.builtin.command:
+        cmd: >
+          openssl req -x509 -nodes -days 365 -newkey rsa:2048
+          -keyout {{ ssl_cert_dir }}/{{ brc_domain }}/privkey.pem
+          -out {{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem
+          -subj "/CN={{ brc_domain }}/O=BRC Analytics/C=US"
+      when: ssl_mode | default('letsencrypt') == 'self_signed' and not ssl_cert_stat.stat.exists
+
+    # Let's Encrypt certificate (production)
     - name: Obtain SSL certificate via certbot
       ansible.builtin.command:
         cmd: >
@@ -67,7 +85,7 @@
           --agree-tos
           --email {{ ssl_cert_email }}
           --domain {{ brc_domain }}
-      when: not ssl_cert_stat.stat.exists
+      when: ssl_mode | default('letsencrypt') == 'letsencrypt' and not ssl_cert_stat.stat.exists
       register: certbot_result
 
     # Template nginx SSL configuration
@@ -118,7 +136,7 @@
       retries: "{{ health_check_retries }}"
       delay: "{{ health_check_delay }}"
 
-    # Set up certificate renewal
+    # Set up certificate renewal (Let's Encrypt only)
     - name: Create certbot renewal systemd timer
       ansible.builtin.copy:
         dest: /etc/systemd/system/certbot-renew.timer
@@ -134,6 +152,7 @@
           [Install]
           WantedBy=timers.target
         mode: "0644"
+      when: ssl_mode | default('letsencrypt') == 'letsencrypt'
 
     - name: Create certbot renewal systemd service
       ansible.builtin.copy:
@@ -146,6 +165,7 @@
           Type=oneshot
           ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "cd {{ brc_backend_dir }} && docker compose restart nginx"
         mode: "0644"
+      when: ssl_mode | default('letsencrypt') == 'letsencrypt'
 
     - name: Enable certbot renewal timer
       ansible.builtin.systemd:
@@ -153,6 +173,7 @@
         enabled: true
         state: started
         daemon_reload: true
+      when: ssl_mode | default('letsencrypt') == 'letsencrypt'
 
     - name: Display deployment completion message
       ansible.builtin.debug:
