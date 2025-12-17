@@ -2,6 +2,7 @@
 # Run playbooks locally on TACC VMs with sudo caching
 #
 # Usage:
+#   make setup      - First time: create venv and install Ansible
 #   make bootstrap  - Initial system setup (Docker, Node.js, certbot)
 #   make deploy     - Full deployment (clone, build, start)
 #   make update     - Update existing deployment
@@ -9,19 +10,34 @@
 
 HOSTNAME = $(shell hostname --fqdn)
 INVENTORY = inventory/hosts.yaml
-ANSIBLE_PLAYBOOK = ansible-playbook -i $(INVENTORY)
+VENV = .venv
+ANSIBLE_PLAYBOOK = $(VENV)/bin/ansible-playbook -i $(INVENTORY)
+ANSIBLE_GALAXY = $(VENV)/bin/ansible-galaxy
+PIP = $(VENV)/bin/pip
 
-.PHONY: sudo bootstrap deploy update status requirements cert-renew logs shell help
+.PHONY: setup sudo bootstrap deploy update status requirements cert-renew logs shell help
+
+# First-time setup: create venv, install Ansible, install Galaxy collections
+setup:
+	python3 -m venv $(VENV)
+	$(PIP) install --upgrade pip
+	$(PIP) install -r requirements.txt
+	$(ANSIBLE_GALAXY) collection install -r requirements.yaml
+	@echo ""
+	@echo "Setup complete! Now run: make bootstrap"
 
 # Cache sudo credentials before running privileged playbooks
 sudo:
 	@echo "Caching sudo credentials..."
 	@sudo -l > /dev/null
 
-# Install Ansible Galaxy requirements
-requirements:
-	ansible-galaxy collection install -r requirements.yaml
-	ansible-galaxy role install -r requirements.yaml
+# Install/update Ansible Galaxy requirements
+requirements: $(VENV)
+	$(ANSIBLE_GALAXY) collection install -r requirements.yaml
+
+$(VENV):
+	@echo "Run 'make setup' first to create the virtual environment"
+	@exit 1
 
 # Initial system setup: Docker, Node.js, certbot, service user
 bootstrap: sudo
@@ -69,7 +85,7 @@ help:
 	@echo "BRC Analytics Playbook"
 	@echo ""
 	@echo "Targets:"
-	@echo "  requirements  - Install Ansible Galaxy dependencies"
+	@echo "  setup         - First time: create .venv and install Ansible"
 	@echo "  bootstrap     - Initial system setup (Docker, Node.js, certbot)"
 	@echo "  deploy        - Full deployment (clone, build, SSL, start)"
 	@echo "  update        - Update deployment (pull, rebuild, restart)"
@@ -80,8 +96,13 @@ help:
 	@echo "  vault-edit    - Edit encrypted vault file"
 	@echo "  check         - Syntax check all playbooks"
 	@echo ""
-	@echo "Example workflow:"
-	@echo "  1. make requirements  # First time only"
-	@echo "  2. make bootstrap     # First time only"
-	@echo "  3. make deploy        # Initial deployment"
-	@echo "  4. make update        # Subsequent updates"
+	@echo "First-time setup:"
+	@echo "  sudo dnf install -y git python3 make"
+	@echo "  git clone https://github.com/galaxyproject/brc-analytics-playbook.git"
+	@echo "  cd brc-analytics-playbook"
+	@echo "  make setup"
+	@echo "  make bootstrap"
+	@echo "  make deploy"
+	@echo ""
+	@echo "Subsequent updates:"
+	@echo "  make update"
