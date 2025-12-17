@@ -16,61 +16,52 @@
           - git
           - ca-certificates
           - gnupg
-          - lsb-release
+          - openssl
         state: present
 
     # Docker installation (RHEL/CentOS/Rocky)
-    - name: Check if Docker is installed
-      ansible.builtin.command: docker --version
-      register: docker_check
-      changed_when: false
-      failed_when: false
+    - name: Add Docker repository (RHEL-based)
+      ansible.builtin.yum_repository:
+        name: docker-ce
+        description: Docker CE Stable
+        baseurl: https://download.docker.com/linux/centos/$releasever/$basearch/stable
+        gpgcheck: true
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        enabled: true
+      when: ansible_os_family == "RedHat"
 
-    - name: Install Docker (if not present)
-      when: docker_check.rc != 0
-      block:
-        - name: Add Docker repository (RHEL-based)
-          ansible.builtin.yum_repository:
-            name: docker-ce
-            description: Docker CE Stable
-            baseurl: https://download.docker.com/linux/centos/$releasever/$basearch/stable
-            gpgcheck: true
-            gpgkey: https://download.docker.com/linux/centos/gpg
-            enabled: true
-          when: ansible_os_family == "RedHat"
+    - name: Install Docker packages (RHEL-based)
+      ansible.builtin.dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+      when: ansible_os_family == "RedHat"
 
-        - name: Install Docker packages (RHEL-based)
-          ansible.builtin.dnf:
-            name:
-              - docker-ce
-              - docker-ce-cli
-              - containerd.io
-              - docker-compose-plugin
-            state: present
-          when: ansible_os_family == "RedHat"
+    - name: Add Docker GPG key (Debian-based)
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: ansible_os_family == "Debian"
 
-        - name: Install Docker (Debian-based)
-          when: ansible_os_family == "Debian"
-          block:
-            - name: Add Docker GPG key
-              ansible.builtin.apt_key:
-                url: https://download.docker.com/linux/ubuntu/gpg
-                state: present
+    - name: Add Docker repository (Debian-based)
+      ansible.builtin.apt_repository:
+        repo: "deb https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when: ansible_os_family == "Debian"
 
-            - name: Add Docker repository
-              ansible.builtin.apt_repository:
-                repo: "deb https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-                state: present
-
-            - name: Install Docker packages
-              ansible.builtin.apt:
-                name:
-                  - docker-ce
-                  - docker-ce-cli
-                  - containerd.io
-                  - docker-compose-plugin
-                state: present
-                update_cache: true
+    - name: Install Docker packages (Debian-based)
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+      when: ansible_os_family == "Debian"
 
     - name: Enable and start Docker service
       ansible.builtin.systemd:
@@ -106,54 +97,44 @@
         mode: "0755"
 
     # Node.js installation (for catalog builds)
-    - name: Check if Node.js is installed
-      ansible.builtin.command: node --version
-      register: node_check
-      changed_when: false
-      failed_when: false
+    - name: Install NodeSource repository (RHEL-based)
+      ansible.builtin.shell: |
+        curl -fsSL https://rpm.nodesource.com/setup_{{ nodejs_version }}.x | bash -
+      args:
+        creates: /etc/yum.repos.d/nodesource-el9.repo
+      when: ansible_os_family == "RedHat"
 
-    - name: Install Node.js (if not present)
-      when: node_check.rc != 0
-      block:
-        - name: Install NodeSource repository (RHEL-based)
-          ansible.builtin.shell: |
-            curl -fsSL https://rpm.nodesource.com/setup_{{ nodejs_version }}.x | bash -
-          args:
-            creates: /etc/yum.repos.d/nodesource-el*.repo
-          when: ansible_os_family == "RedHat"
+    - name: Install Node.js (RHEL-based)
+      ansible.builtin.dnf:
+        name: nodejs
+        state: present
+      when: ansible_os_family == "RedHat"
 
-        - name: Install Node.js (RHEL-based)
-          ansible.builtin.dnf:
-            name: nodejs
-            state: present
-          when: ansible_os_family == "RedHat"
+    - name: Install NodeSource repository (Debian-based)
+      ansible.builtin.shell: |
+        curl -fsSL https://deb.nodesource.com/setup_{{ nodejs_version }}.x | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+      when: ansible_os_family == "Debian"
 
-        - name: Install NodeSource repository (Debian-based)
-          ansible.builtin.shell: |
-            curl -fsSL https://deb.nodesource.com/setup_{{ nodejs_version }}.x | bash -
-          args:
-            creates: /etc/apt/sources.list.d/nodesource.list
-          when: ansible_os_family == "Debian"
-
-        - name: Install Node.js (Debian-based)
-          ansible.builtin.apt:
-            name: nodejs
-            state: present
-            update_cache: true
-          when: ansible_os_family == "Debian"
+    - name: Install Node.js (Debian-based)
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: true
+      when: ansible_os_family == "Debian"
 
     # Certbot for Let's Encrypt
     - name: Install certbot
       ansible.builtin.package:
-        name:
-          - certbot
+        name: certbot
         state: present
 
-    # Firewall configuration (if firewalld is running)
-    - name: Check if firewalld is running
-      ansible.builtin.systemd:
-        name: firewalld
+    # Firewall configuration (if firewalld is active)
+    - name: Check if firewalld is active
+      ansible.builtin.command: systemctl is-active firewalld
       register: firewalld_status
+      changed_when: false
       failed_when: false
 
     - name: Open HTTP/HTTPS ports in firewall
@@ -165,7 +146,7 @@
       loop:
         - "80/tcp"
         - "443/tcp"
-      when: firewalld_status.status.ActiveState == "active"
+      when: firewalld_status.rc == 0
 
     - name: Display bootstrap completion message
       ansible.builtin.debug:
