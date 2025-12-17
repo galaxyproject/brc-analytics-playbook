@@ -53,20 +53,34 @@
         group: "{{ brc_group }}"
         mode: "0644"
 
-    # SSL Certificate - Let's Encrypt or self-signed
-    - name: Check if SSL certificate exists
-      ansible.builtin.stat:
-        path: "{{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem"
-      register: ssl_cert_stat
-
-    # Self-signed certificate (when ssl_mode is self_signed or firewall blocks Let's Encrypt)
+    # SSL Certificate - from vault, self-signed, or Let's Encrypt
     - name: Create SSL certificate directory
       ansible.builtin.file:
         path: "{{ ssl_cert_dir }}/{{ brc_domain }}"
         state: directory
         mode: "0755"
-      when: ssl_mode | default('letsencrypt') == 'self_signed' and not ssl_cert_stat.stat.exists
 
+    - name: Check if SSL certificate exists
+      ansible.builtin.stat:
+        path: "{{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem"
+      register: ssl_cert_stat
+
+    # Deploy certificate from vault (preferred - certs generated locally with DNS-01)
+    - name: Deploy SSL certificate from vault
+      ansible.builtin.copy:
+        content: "{{ vault_ssl_fullchain }}"
+        dest: "{{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem"
+        mode: "0644"
+      when: ssl_mode | default('vault') == 'vault' and vault_ssl_fullchain is defined
+
+    - name: Deploy SSL private key from vault
+      ansible.builtin.copy:
+        content: "{{ vault_ssl_privkey }}"
+        dest: "{{ ssl_cert_dir }}/{{ brc_domain }}/privkey.pem"
+        mode: "0600"
+      when: ssl_mode | default('vault') == 'vault' and vault_ssl_privkey is defined
+
+    # Self-signed certificate (fallback for testing)
     - name: Generate self-signed SSL certificate
       ansible.builtin.command:
         cmd: >
@@ -74,9 +88,9 @@
           -keyout {{ ssl_cert_dir }}/{{ brc_domain }}/privkey.pem
           -out {{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem
           -subj "/CN={{ brc_domain }}/O=BRC Analytics/C=US"
-      when: ssl_mode | default('letsencrypt') == 'self_signed' and not ssl_cert_stat.stat.exists
+      when: ssl_mode | default('vault') == 'self_signed' and not ssl_cert_stat.stat.exists
 
-    # Let's Encrypt certificate (production)
+    # Let's Encrypt certificate (requires port 80 open)
     - name: Obtain SSL certificate via certbot
       ansible.builtin.command:
         cmd: >
@@ -85,7 +99,7 @@
           --agree-tos
           --email {{ ssl_cert_email }}
           --domain {{ brc_domain }}
-      when: ssl_mode | default('letsencrypt') == 'letsencrypt' and not ssl_cert_stat.stat.exists
+      when: ssl_mode | default('vault') == 'letsencrypt' and not ssl_cert_stat.stat.exists
       register: certbot_result
 
     # Template nginx SSL configuration

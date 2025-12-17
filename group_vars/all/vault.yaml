@@ -5,5 +5,19 @@
 # SSL certificate email for Let's Encrypt notifications
 # vault_ssl_cert_email: your-email@example.com
 
+# SSL certificates (generated locally with certbot --dns-route53)
+# Run: make cert-generate DOMAIN=api.brc-analytics.org
+# Then copy the cert contents here and encrypt the file
+#
+# vault_ssl_fullchain: |
+#   -----BEGIN CERTIFICATE-----
+#   ...
+#   -----END CERTIFICATE-----
+#
+# vault_ssl_privkey: |
+#   -----BEGIN PRIVATE KEY-----
+#   ...
+#   -----END PRIVATE KEY-----
+
 # Future: Database credentials, API keys, etc.
 # vault_database_url: postgresql://user:pass@host/db

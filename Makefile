@@ -15,7 +15,7 @@ ANSIBLE_PLAYBOOK = $(VENV)/bin/ansible-playbook -i $(INVENTORY)
 ANSIBLE_GALAXY = $(VENV)/bin/ansible-galaxy
 PIP = $(VENV)/bin/pip
 
-.PHONY: setup sudo bootstrap deploy update status requirements cert-renew logs shell help
+.PHONY: setup sudo bootstrap deploy update status requirements cert-renew cert-generate logs shell help
 
 # First-time setup: create venv, install Ansible, install Galaxy collections
 setup:
@@ -73,6 +73,25 @@ vault-edit:
 
 vault-create:
 	ansible-vault create group_vars/all/vault.yaml
+
+# Generate SSL certificate locally using DNS-01 challenge (requires AWS creds)
+# Usage: make cert-generate DOMAIN=api.brc-analytics.org
+cert-generate:
+ifndef DOMAIN
+	$(error DOMAIN is required. Usage: make cert-generate DOMAIN=api.brc-analytics.org)
+endif
+	@echo "Generating certificate for $(DOMAIN) using DNS-01 challenge..."
+	certbot certonly --dns-route53 -d $(DOMAIN) --config-dir ./certs --work-dir ./certs --logs-dir ./certs
+	@echo ""
+	@echo "Certificate generated! Add these to your vault file:"
+	@echo ""
+	@echo "vault_ssl_fullchain: |"
+	@cat ./certs/live/$(DOMAIN)/fullchain.pem | sed 's/^/  /'
+	@echo ""
+	@echo "vault_ssl_privkey: |"
+	@cat ./certs/live/$(DOMAIN)/privkey.pem | sed 's/^/  /'
+	@echo ""
+	@echo "Then run: ansible-vault encrypt group_vars/<env>/vault.yaml"
 
 # Syntax check playbooks
 check:
