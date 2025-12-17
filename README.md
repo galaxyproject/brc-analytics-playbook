@@ -32,7 +32,7 @@ The playbook is designed for **local execution** on each VM. Since SSH access re
 
 ```bash
 # Install git, python, make if not present
-sudo dnf install -y git python3 make
+sudo dnf install -y git python3 python3-pip make
 
 # Clone this playbook repository
 git clone https://github.com/galaxyproject/brc-analytics-playbook.git
