@@ -9,8 +9,9 @@ brc_repo_branch: production
 # API settings
 api_log_level: WARNING
 
-# Use certs from vault (generated locally with DNS-01 challenge)
-ssl_mode: vault
+# Use self-signed for now until certs are added to vault
+# Change to 'vault' once certs are generated and added
+ssl_mode: self_signed
 
 # SSL certificate email (for Let's Encrypt notifications if using that mode)
 ssl_cert_email: "{{ vault_ssl_cert_email | default('admin@brc-analytics.tacc.utexas.edu') }}"
