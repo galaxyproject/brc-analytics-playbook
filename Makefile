@@ -15,7 +15,7 @@ ANSIBLE_PLAYBOOK = $(VENV)/bin/ansible-playbook -i $(INVENTORY)
 ANSIBLE_GALAXY = $(VENV)/bin/ansible-galaxy
 PIP = $(VENV)/bin/pip
 
-.PHONY: setup sudo bootstrap deploy update status requirements cert-renew cert-generate logs shell help
+.PHONY: setup sudo bootstrap deploy update status restart requirements cert-renew cert-generate logs shell help
 
 # First-time setup: create venv, install Ansible, install Galaxy collections
 setup:
@@ -54,6 +54,10 @@ update: sudo
 # Check service status (no sudo required)
 status:
 	$(ANSIBLE_PLAYBOOK) playbook-status.yaml --limit=$(HOSTNAME)
+
+# Restart services
+restart: sudo
+	$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --limit=$(HOSTNAME)
 
 # Force certificate renewal
 cert-renew: sudo
@@ -99,6 +103,7 @@ check:
 	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --syntax-check
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --syntax-check
 	$(ANSIBLE_PLAYBOOK) playbook-status.yaml --syntax-check
+	$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --syntax-check
 
 help:
 	@echo "BRC Analytics Playbook"
@@ -109,6 +114,7 @@ help:
 	@echo "  deploy        - Full deployment (clone, build, SSL, start)"
 	@echo "  update        - Update deployment (pull, rebuild, restart)"
 	@echo "  status        - Check service status"
+	@echo "  restart       - Restart services"
 	@echo "  cert-renew    - Force SSL certificate renewal"
 	@echo "  logs          - View container logs"
 	@echo "  shell         - Shell into backend container"

@@ -1,0 +1,33 @@
+# Restart Playbook - Restart services without pulling changes
+# Use for quick restarts when config hasn't changed
+#
+# Usage: make restart
+---
+- name: Restart BRC Analytics services
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Restart Docker services
+      ansible.builtin.command:
+        cmd: docker compose restart
+        chdir: "{{ brc_backend_dir }}"
+      become_user: "{{ brc_user }}"
+      register: docker_restart
+
+    - name: Wait for services to be healthy
+      ansible.builtin.uri:
+        url: "{{ health_check_url }}"
+        validate_certs: false
+        status_code: 200
+      register: health_result
+      until: health_result.status == 200
+      retries: "{{ health_check_retries }}"
+      delay: "{{ health_check_delay }}"
+
+    - name: Report restart status
+      ansible.builtin.debug:
+        msg: |
+          Services restarted successfully!
+
+          Service URL: https://{{ brc_domain }}
