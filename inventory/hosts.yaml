@@ -27,3 +27,13 @@ all:
           brc_domain: platform-dev.brc-analytics.org
           ssl_cert_path: /etc/letsencrypt/live/brc-analytics-dev.tacc.utexas.edu-0001/fullchain.pem
           ssl_key_path: /etc/letsencrypt/live/brc-analytics-dev.tacc.utexas.edu-0001/privkey.pem
+
+    staging:
+      hosts:
+        brc-backend.novalocal:
+          ansible_host: 149.165.172.128
+          brc_environment: staging
+          brc_domain: platform-staging.brc-analytics.org
+          ssl_mode: letsencrypt
+          ssl_cert_email: dannon.baker@gmail.com
+          brc_repo_branch: main
