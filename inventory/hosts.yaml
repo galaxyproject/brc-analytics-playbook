@@ -35,5 +35,7 @@ all:
           brc_environment: staging
           brc_domain: platform-staging.brc-analytics.org
           ssl_mode: letsencrypt
+          ssl_cert_path: /etc/letsencrypt/live/platform-staging.brc-analytics.org/fullchain.pem
+          ssl_key_path: /etc/letsencrypt/live/platform-staging.brc-analytics.org/privkey.pem
           ssl_cert_email: dannon.baker@gmail.com
           brc_repo_branch: main
