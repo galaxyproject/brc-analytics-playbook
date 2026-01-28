@@ -8,6 +8,10 @@
   become: true
 
   tasks:
+    # ============================================================
+    # SINGLE-ENVIRONMENT HOSTS (TACC)
+    # ============================================================
+
     # Pull latest changes
     - name: Pull latest changes from repository
       ansible.builtin.git:
@@ -17,6 +21,7 @@
         force: false
       become_user: "{{ brc_user }}"
       register: git_pull
+      when: brc_environments is not defined
 
     # Check if catalog source changed
     - name: Check for catalog source changes
@@ -27,7 +32,7 @@
       register: catalog_changes
       changed_when: false
       failed_when: false
-      when: git_pull.changed
+      when: brc_environments is not defined and git_pull.changed
 
     # Rebuild catalog if source changed
     - name: Rebuild catalog data (if source changed)
@@ -35,7 +40,7 @@
         cmd: npm run build-brc-db
         chdir: "{{ brc_deploy_dir }}"
       become_user: "{{ brc_user }}"
-      when: git_pull.changed and catalog_changes.stdout | length > 0
+      when: brc_environments is not defined and git_pull.changed and catalog_changes.stdout | length > 0
       register: catalog_rebuild
 
     # Update npm dependencies if package-lock changed
@@ -47,14 +52,14 @@
       register: npm_changes
       changed_when: false
       failed_when: false
-      when: git_pull.changed
+      when: brc_environments is not defined and git_pull.changed
 
     - name: Update npm dependencies (if package-lock changed)
       ansible.builtin.command:
         cmd: npm ci
         chdir: "{{ brc_deploy_dir }}"
       become_user: "{{ brc_user }}"
-      when: git_pull.changed and npm_changes.stdout | length > 0
+      when: brc_environments is not defined and git_pull.changed and npm_changes.stdout | length > 0
 
     # Re-template configuration files
     - name: Template backend environment file
@@ -65,6 +70,7 @@
         group: "{{ brc_group }}"
         mode: "0600"
       register: env_template
+      when: brc_environments is not defined
 
     - name: Template docker-compose override
       ansible.builtin.template:
@@ -74,6 +80,7 @@
         group: "{{ brc_group }}"
         mode: "0644"
       register: compose_template
+      when: brc_environments is not defined
 
     - name: Template nginx SSL configuration
       ansible.builtin.template:
@@ -83,6 +90,7 @@
         group: "{{ brc_group }}"
         mode: "0644"
       register: nginx_template
+      when: brc_environments is not defined
 
     # Rebuild Docker images
     - name: Rebuild Docker images
@@ -92,7 +100,7 @@
       become_user: "{{ brc_user }}"
       environment:
         APP_VERSION: "{{ lookup('file', brc_deploy_dir + '/package.json') | from_json | json_query('version') }}"
-      when: git_pull.changed
+      when: brc_environments is not defined and git_pull.changed
       register: docker_build
 
     # Restart services
@@ -101,7 +109,7 @@
         cmd: docker compose up -d --force-recreate
         chdir: "{{ brc_backend_dir }}"
       become_user: "{{ brc_user }}"
-      when: git_pull.changed or env_template.changed or compose_template.changed or nginx_template.changed
+      when: brc_environments is not defined and (git_pull.changed or env_template.changed or compose_template.changed or nginx_template.changed)
       register: docker_restart
 
     # Wait for health check
@@ -114,9 +122,9 @@
       until: health_result.status == 200
       retries: "{{ health_check_retries }}"
       delay: "{{ health_check_delay }}"
-      when: docker_restart.changed | default(false)
+      when: brc_environments is not defined and docker_restart.changed | default(false)
 
-    # Report status
+    # Report status (single-env)
     - name: Report update status
       ansible.builtin.debug:
         msg: |
@@ -128,3 +136,40 @@
           - Services restarted: {{ docker_restart.changed | default(false) }}
 
           Service URL: https://{{ brc_domain }}
+      when: brc_environments is not defined
+
+    # ============================================================
+    # MULTI-ENVIRONMENT HOSTS (Jetstream)
+    # ============================================================
+
+    - name: Update each environment
+      ansible.builtin.include_tasks: tasks/update-environment.yaml
+      loop: "{{ brc_environments }}"
+      loop_control:
+        loop_var: env
+      when: brc_environments is defined
+
+    - name: Template multi-environment nginx configuration
+      ansible.builtin.template:
+        src: templates/nginx-multi-env.conf.j2
+        dest: /etc/nginx/conf.d/brc-analytics.conf
+        mode: "0644"
+      when: brc_environments is defined
+      notify: Reload nginx
+
+    - name: Report update status (multi-env)
+      ansible.builtin.debug:
+        msg: |
+          Multi-environment update complete!
+
+          Environments updated:
+          {% for env in brc_environments %}
+          - {{ env.name }}: https://{{ env.domain }}
+          {% endfor %}
+      when: brc_environments is defined
+
+  handlers:
+    - name: Reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
