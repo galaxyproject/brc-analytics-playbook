@@ -10,6 +10,9 @@
   ansible.builtin.set_fact:
     env_deploy_dir: "/opt/brc-analytics-{{ env.name }}"
     env_backend_dir: "/opt/brc-analytics-{{ env.name }}/backend"
+    brc_domain: "{{ env.domain }}"
+    brc_environment: "{{ env.name }}"
+    brc_repo_branch: "{{ env.branch }}"
 
 - name: "Clone or update repository ({{ env.name }})"
   ansible.builtin.git:
