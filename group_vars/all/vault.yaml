@@ -2,6 +2,12 @@
 # Or use `make vault-edit` to edit in place
 ---
 
+# AI/LLM API Configuration (for natural language search)
+vault_ai_api_key: "your-api-key-here"
+vault_ai_api_base_url: "https://api.anthropic.com"
+vault_ai_primary_model: "claude-sonnet-4-20250514"
+vault_ai_secondary_model: "claude-haiku-4-5-20251001"
+
 # SSL certificate email for Let's Encrypt notifications
 # vault_ssl_cert_email: your-email@example.com
 
