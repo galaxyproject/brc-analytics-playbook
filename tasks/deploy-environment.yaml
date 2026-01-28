@@ -1,0 +1,93 @@
+# Deploy a single environment
+# Called with 'env' variable containing environment config
+# env:
+#   name: staging
+#   domain: platform-staging.brc-analytics.org
+#   branch: main
+#   backend_port: 8000
+---
+- name: "Set environment-specific variables for {{ env.name }}"
+  ansible.builtin.set_fact:
+    env_deploy_dir: "/opt/brc-analytics-{{ env.name }}"
+    env_backend_dir: "/opt/brc-analytics-{{ env.name }}/backend"
+
+- name: "Clone or update repository ({{ env.name }})"
+  ansible.builtin.git:
+    repo: "{{ brc_repo_url }}"
+    dest: "{{ env_deploy_dir }}"
+    version: "{{ env.branch }}"
+    force: false
+  become_user: "{{ brc_user }}"
+
+- name: "Install npm dependencies ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: npm ci
+    chdir: "{{ env_deploy_dir }}"
+  become_user: "{{ brc_user }}"
+  register: npm_install
+  changed_when: "'added' in npm_install.stdout"
+
+- name: "Build catalog data ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: npm run build-brc-db
+    chdir: "{{ env_deploy_dir }}"
+  become_user: "{{ brc_user }}"
+  changed_when: true
+
+- name: "Template backend environment file ({{ env.name }})"
+  ansible.builtin.template:
+    src: templates/api.env.j2
+    dest: "{{ env_backend_dir }}/api/.env"
+    owner: "{{ brc_user }}"
+    group: "{{ brc_group }}"
+    mode: "0600"
+
+- name: "Template docker-compose override ({{ env.name }})"
+  ansible.builtin.template:
+    src: templates/docker-compose.backend-only.yml.j2
+    dest: "{{ env_backend_dir }}/docker-compose.override.yml"
+    owner: "{{ brc_user }}"
+    group: "{{ brc_group }}"
+    mode: "0644"
+
+- name: "Check if SSL certificate exists ({{ env.name }})"
+  ansible.builtin.stat:
+    path: "/etc/letsencrypt/live/{{ env.domain }}/fullchain.pem"
+  register: ssl_cert_stat
+
+- name: "Obtain SSL certificate via certbot ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: >
+      certbot certonly --standalone
+      --non-interactive
+      --agree-tos
+      --email {{ ssl_cert_email }}
+      --domain {{ env.domain }}
+  when: not ssl_cert_stat.stat.exists
+  register: certbot_result
+
+- name: "Stop any running containers ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: docker compose -p brc-analytics-{{ env.name }} down
+    chdir: "{{ env_backend_dir }}"
+  become_user: "{{ brc_user }}"
+  failed_when: false
+  changed_when: false
+
+- name: "Build and start Docker services ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: docker compose -p brc-analytics-{{ env.name }} up -d --build
+    chdir: "{{ env_backend_dir }}"
+  become_user: "{{ brc_user }}"
+  environment:
+    APP_VERSION: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
+  register: docker_up
+
+- name: "Wait for backend to be healthy ({{ env.name }})"
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ env.backend_port }}/api/v1/health"
+    status_code: 200
+  register: health_result
+  until: health_result.status == 200
+  retries: 30
+  delay: 5

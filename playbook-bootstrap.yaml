@@ -87,7 +87,7 @@
         create_home: true
         state: present
 
-    # Deployment directory
+    # Deployment directory (single-environment hosts)
     - name: Create deployment directory
       ansible.builtin.file:
         path: "{{ brc_deploy_dir }}"
@@ -95,6 +95,18 @@
         owner: "{{ brc_user }}"
         group: "{{ brc_group }}"
         mode: "0755"
+      when: brc_environments is not defined
+
+    # Deployment directories (multi-environment hosts)
+    - name: Create deployment directories for each environment
+      ansible.builtin.file:
+        path: "/opt/brc-analytics-{{ item.name }}"
+        state: directory
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0755"
+      loop: "{{ brc_environments }}"
+      when: brc_environments is defined
 
     # Node.js installation (for catalog builds)
     - name: Install NodeSource repository (RHEL-based)
@@ -129,6 +141,27 @@
       ansible.builtin.package:
         name: certbot
         state: present
+
+    # Create certbot webroot directory
+    - name: Create certbot webroot directory
+      ansible.builtin.file:
+        path: /var/www/certbot
+        state: directory
+        mode: "0755"
+
+    # Host-level nginx for multi-environment setups
+    - name: Install nginx (multi-environment hosts)
+      ansible.builtin.package:
+        name: nginx
+        state: present
+      when: brc_environments is defined
+
+    - name: Enable and start nginx (multi-environment hosts)
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: true
+        state: started
+      when: brc_environments is defined
 
     # Firewall configuration (if firewalld is active)
     - name: Check if firewalld is active

@@ -1,0 +1,13 @@
+# Docker Compose Override - Backend Only
+# Managed by Ansible - do not edit manually
+#
+# This override disables the frontend service and exposes the backend
+# on a specific port for host-level nginx to proxy to.
+---
+services:
+  frontend:
+    profiles:
+      - disabled
+  backend:
+    ports:
+      - "127.0.0.1:{{ env.backend_port }}:8000"

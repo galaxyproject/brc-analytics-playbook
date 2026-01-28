@@ -8,6 +8,10 @@
   become: true
 
   tasks:
+    # ============================================================
+    # SINGLE-ENVIRONMENT HOSTS (TACC)
+    # ============================================================
+
     # Clone/update repository
     - name: Clone or update repository
       ansible.builtin.git:
@@ -16,6 +20,7 @@
         version: "{{ brc_repo_branch }}"
         force: false
       become_user: "{{ brc_user }}"
+      when: brc_environments is not defined
 
     # Install npm dependencies
     - name: Install npm dependencies
@@ -25,6 +30,7 @@
       become_user: "{{ brc_user }}"
       register: npm_install
       changed_when: "'added' in npm_install.stdout"
+      when: brc_environments is not defined
 
     # Build catalog data
     - name: Build catalog data
@@ -34,6 +40,7 @@
       become_user: "{{ brc_user }}"
       register: catalog_build
       changed_when: true
+      when: brc_environments is not defined
 
     # Template backend .env file
     - name: Template backend environment file
@@ -43,6 +50,7 @@
         owner: "{{ brc_user }}"
         group: "{{ brc_group }}"
         mode: "0600"
+      when: brc_environments is not defined
 
     # Template docker-compose override for SSL ports
     - name: Template docker-compose override
@@ -52,6 +60,7 @@
         owner: "{{ brc_user }}"
         group: "{{ brc_group }}"
         mode: "0644"
+      when: brc_environments is not defined
 
     # SSL Certificate handling
     # ssl_mode: system - certs managed externally (e.g., by TACC NSO), paths in inventory
@@ -64,13 +73,13 @@
         path: "{{ ssl_cert_dir }}/{{ brc_domain }}"
         state: directory
         mode: "0755"
-      when: ssl_mode != 'system'
+      when: ssl_mode != 'system' and brc_environments is not defined
 
     - name: Check if SSL certificate exists
       ansible.builtin.stat:
         path: "{{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem"
       register: ssl_cert_stat
-      when: ssl_mode != 'system'
+      when: ssl_mode != 'system' and brc_environments is not defined
 
     # Deploy certificate from vault (preferred - certs generated locally with DNS-01)
     - name: Deploy SSL certificate from vault
@@ -78,14 +87,14 @@
         content: "{{ vault_ssl_fullchain }}"
         dest: "{{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem"
         mode: "0644"
-      when: ssl_mode == 'vault' and vault_ssl_fullchain is defined
+      when: ssl_mode == 'vault' and vault_ssl_fullchain is defined and brc_environments is not defined
 
     - name: Deploy SSL private key from vault
       ansible.builtin.copy:
         content: "{{ vault_ssl_privkey }}"
         dest: "{{ ssl_cert_dir }}/{{ brc_domain }}/privkey.pem"
         mode: "0600"
-      when: ssl_mode == 'vault' and vault_ssl_privkey is defined
+      when: ssl_mode == 'vault' and vault_ssl_privkey is defined and brc_environments is not defined
 
     # Self-signed certificate (fallback for testing)
     - name: Generate self-signed SSL certificate
@@ -95,7 +104,7 @@
           -keyout {{ ssl_cert_dir }}/{{ brc_domain }}/privkey.pem
           -out {{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem
           -subj "/CN={{ brc_domain }}/O=BRC Analytics/C=US"
-      when: ssl_mode == 'self_signed' and not ssl_cert_stat.stat.exists
+      when: ssl_mode == 'self_signed' and not ssl_cert_stat.stat.exists and brc_environments is not defined
 
     # Let's Encrypt certificate (requires port 80 open)
     - name: Obtain SSL certificate via certbot
@@ -106,7 +115,7 @@
           --agree-tos
           --email {{ ssl_cert_email }}
           --domain {{ brc_domain }}
-      when: ssl_mode == 'letsencrypt' and not ssl_cert_stat.stat.exists
+      when: ssl_mode == 'letsencrypt' and not ssl_cert_stat.stat.exists and brc_environments is not defined
       register: certbot_result
 
     # Template nginx SSL configuration
@@ -117,6 +126,7 @@
         owner: "{{ brc_user }}"
         group: "{{ brc_group }}"
         mode: "0755"
+      when: brc_environments is not defined
 
     - name: Template nginx SSL configuration
       ansible.builtin.template:
@@ -125,6 +135,7 @@
         owner: "{{ brc_user }}"
         group: "{{ brc_group }}"
         mode: "0644"
+      when: brc_environments is not defined
 
     # Build Docker images
     - name: Build Docker images
@@ -136,6 +147,7 @@
         APP_VERSION: "{{ lookup('file', brc_deploy_dir + '/package.json') | from_json | json_query('version') }}"
       register: docker_build
       changed_when: "'Successfully built' in docker_build.stdout or 'exporting to image' in docker_build.stdout"
+      when: brc_environments is not defined
 
     # Start services
     - name: Start Docker services
@@ -145,6 +157,7 @@
       become_user: "{{ brc_user }}"
       register: docker_up
       changed_when: "'Started' in docker_up.stderr or 'Creating' in docker_up.stderr"
+      when: brc_environments is not defined
 
     # Wait for health check
     - name: Wait for services to be healthy
@@ -156,8 +169,9 @@
       until: health_result.status == 200
       retries: "{{ health_check_retries }}"
       delay: "{{ health_check_delay }}"
+      when: brc_environments is not defined
 
-    # Set up certificate renewal (Let's Encrypt only)
+    # Set up certificate renewal (Let's Encrypt only, single-env hosts)
     - name: Create certbot renewal systemd timer
       ansible.builtin.copy:
         dest: /etc/systemd/system/certbot-renew.timer
@@ -173,7 +187,7 @@
           [Install]
           WantedBy=timers.target
         mode: "0644"
-      when: ssl_mode | default('letsencrypt') == 'letsencrypt'
+      when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
     - name: Create certbot renewal systemd service
       ansible.builtin.copy:
@@ -184,9 +198,9 @@
 
           [Service]
           Type=oneshot
-          ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "cd {{ brc_backend_dir }} && docker compose restart nginx"
+          ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "cd {{ brc_backend_dir }} && docker compose restart frontend"
         mode: "0644"
-      when: ssl_mode | default('letsencrypt') == 'letsencrypt'
+      when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
     - name: Enable certbot renewal timer
       ansible.builtin.systemd:
@@ -194,9 +208,9 @@
         enabled: true
         state: started
         daemon_reload: true
-      when: ssl_mode | default('letsencrypt') == 'letsencrypt'
+      when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
-    - name: Display deployment completion message
+    - name: Display deployment completion message (single-env)
       ansible.builtin.debug:
         msg: |
           Deployment complete!
@@ -208,3 +222,83 @@
           - View logs: make logs
           - Check status: make status
           - Update: make update
+      when: brc_environments is not defined
+
+    # ============================================================
+    # MULTI-ENVIRONMENT HOSTS (Jetstream)
+    # ============================================================
+
+    - name: Deploy each environment
+      ansible.builtin.include_tasks: tasks/deploy-environment.yaml
+      loop: "{{ brc_environments }}"
+      loop_control:
+        loop_var: env
+      when: brc_environments is defined
+
+    - name: Template multi-environment nginx configuration
+      ansible.builtin.template:
+        src: templates/nginx-multi-env.conf.j2
+        dest: /etc/nginx/conf.d/brc-analytics.conf
+        mode: "0644"
+      when: brc_environments is defined
+      notify: Reload nginx
+
+    - name: Create certbot renewal service for multi-env
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/certbot-renew.service
+        content: |
+          [Unit]
+          Description=Certbot renewal
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "systemctl reload nginx"
+        mode: "0644"
+      when: brc_environments is defined
+
+    - name: Create certbot renewal timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/certbot-renew.timer
+        content: |
+          [Unit]
+          Description=Run certbot twice daily
+
+          [Timer]
+          OnCalendar=*-*-* 00,12:00:00
+          RandomizedDelaySec=43200
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+        mode: "0644"
+      when: brc_environments is defined
+
+    - name: Enable certbot renewal timer (multi-env)
+      ansible.builtin.systemd:
+        name: certbot-renew.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: brc_environments is defined
+
+    - name: Display deployment completion message (multi-env)
+      ansible.builtin.debug:
+        msg: |
+          Multi-environment deployment complete!
+
+          Environments deployed:
+          {% for env in brc_environments %}
+          - {{ env.name }}: https://{{ env.domain }}
+          {% endfor %}
+
+          Useful commands:
+          - View logs: make logs
+          - Check status: make status
+          - Update: make update
+      when: brc_environments is defined
+
+  handlers:
+    - name: Reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
