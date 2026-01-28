@@ -2,12 +2,13 @@
 # Managed by Ansible - do not edit manually
 #
 # This overrides the base docker-compose.yml to:
+# - Replace the frontend service with our SSL-enabled nginx
 # - Expose ports 80/443 instead of 8080
-# - Mount SSL certificates
-# - Mount custom nginx SSL configuration
+# - Mount SSL certificates and custom nginx configuration
 ---
 services:
-  nginx:
+  frontend:
+    image: nginx:alpine
     ports:
       - "{{ http_port }}:80"
       - "{{ https_port }}:443"
