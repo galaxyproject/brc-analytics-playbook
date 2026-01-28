@@ -156,6 +156,12 @@
         state: present
       when: brc_environments is defined
 
+    - name: Allow nginx to connect to network (SELinux)
+      ansible.builtin.command:
+        cmd: setsebool -P httpd_can_network_connect 1
+      when: brc_environments is defined and ansible_selinux.status == "enabled"
+      changed_when: false
+
     - name: Enable and start nginx (multi-environment hosts)
       ansible.builtin.systemd:
         name: nginx
