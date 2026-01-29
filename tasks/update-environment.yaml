@@ -14,7 +14,7 @@
     repo: "{{ brc_repo_url }}"
     dest: "{{ env_deploy_dir }}"
     version: "{{ env.branch }}"
-    force: false
+    force: true
   become_user: "{{ brc_user }}"
   register: git_pull
 
