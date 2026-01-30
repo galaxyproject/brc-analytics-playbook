@@ -142,12 +142,13 @@
     # MULTI-ENVIRONMENT HOSTS (Jetstream)
     # ============================================================
 
+    # Use env_filter to update only specific environments (e.g., -e env_filter=staging)
     - name: Update each environment
       ansible.builtin.include_tasks: tasks/update-environment.yaml
       loop: "{{ brc_environments }}"
       loop_control:
         loop_var: env
-      when: brc_environments is defined
+      when: brc_environments is defined and (env_filter is not defined or env.name == env_filter)
 
     - name: Template multi-environment nginx configuration
       ansible.builtin.template:

@@ -15,7 +15,7 @@ ANSIBLE_PLAYBOOK = $(VENV)/bin/ansible-playbook -i $(INVENTORY)
 ANSIBLE_GALAXY = $(VENV)/bin/ansible-galaxy
 PIP = $(VENV)/bin/pip
 
-.PHONY: setup sudo bootstrap deploy update status restart requirements cert-renew cert-generate logs shell help
+.PHONY: setup sudo bootstrap deploy update update-staging update-beta status restart requirements cert-renew cert-generate logs shell help
 
 # First-time setup: create venv, install Ansible, install Galaxy collections
 setup:
@@ -50,6 +50,14 @@ deploy: sudo
 # Update deployment: pull changes, rebuild, restart
 update: sudo
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME)
+
+# Update only staging environment (multi-env hosts)
+update-staging: sudo
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging
+
+# Update only beta environment (multi-env hosts)
+update-beta: sudo
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta
 
 # Check service status (no sudo required)
 status:
@@ -113,6 +121,8 @@ help:
 	@echo "  bootstrap     - Initial system setup (Docker, Node.js, certbot)"
 	@echo "  deploy        - Full deployment (clone, build, SSL, start)"
 	@echo "  update        - Update deployment (pull, rebuild, restart)"
+	@echo "  update-staging- Update only staging env (multi-env hosts)"
+	@echo "  update-beta   - Update only beta env (multi-env hosts)"
 	@echo "  status        - Check service status"
 	@echo "  restart       - Restart services"
 	@echo "  cert-renew    - Force SSL certificate renewal"
