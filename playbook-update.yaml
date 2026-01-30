@@ -168,6 +168,17 @@
           {% endfor %}
       when: brc_environments is defined
 
+    # ============================================================
+    # CLEANUP (all hosts)
+    # ============================================================
+
+    - name: Clean up unused Docker images and build cache
+      ansible.builtin.command:
+        cmd: docker system prune -af
+      become_user: "{{ brc_user }}"
+      register: docker_prune
+      changed_when: "'Total reclaimed space: 0B' not in docker_prune.stdout"
+
   handlers:
     - name: Reload nginx
       ansible.builtin.systemd:
