@@ -35,6 +35,8 @@ all:
         brc-backend.novalocal:
           ansible_host: 149.165.172.128
           ssl_cert_email: dannon.baker@gmail.com
+          # Skip npm/catalog builds - only running backend containers
+          backend_only: true
           # Multiple environments on this host
           brc_environments:
             - name: staging

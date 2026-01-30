@@ -18,6 +18,8 @@
   become_user: "{{ brc_user }}"
   register: git_pull
 
+# npm/catalog steps can be skipped for backend_only deployments because
+# the catalog output files are committed to the repo and pulled with git
 - name: "Check for catalog source changes ({{ env.name }})"
   ansible.builtin.command:
     cmd: git diff --name-only HEAD@{1} HEAD -- catalog/source/
@@ -26,14 +28,14 @@
   register: catalog_changes
   changed_when: false
   failed_when: false
-  when: git_pull.changed
+  when: git_pull.changed and not (backend_only | default(false))
 
 - name: "Rebuild catalog data ({{ env.name }})"
   ansible.builtin.command:
     cmd: npm run build-brc-db
     chdir: "{{ env_deploy_dir }}"
   become_user: "{{ brc_user }}"
-  when: git_pull.changed and catalog_changes.stdout | default('') | length > 0
+  when: git_pull.changed and not (backend_only | default(false)) and catalog_changes.stdout | default('') | length > 0
 
 - name: "Check for package-lock changes ({{ env.name }})"
   ansible.builtin.command:
@@ -43,14 +45,14 @@
   register: npm_changes
   changed_when: false
   failed_when: false
-  when: git_pull.changed
+  when: git_pull.changed and not (backend_only | default(false))
 
 - name: "Update npm dependencies ({{ env.name }})"
   ansible.builtin.command:
     cmd: npm ci
     chdir: "{{ env_deploy_dir }}"
   become_user: "{{ brc_user }}"
-  when: git_pull.changed and npm_changes.stdout | default('') | length > 0
+  when: git_pull.changed and not (backend_only | default(false)) and npm_changes.stdout | default('') | length > 0
 
 - name: "Template backend environment file ({{ env.name }})"
   ansible.builtin.template:

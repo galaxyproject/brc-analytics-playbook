@@ -22,6 +22,8 @@
     force: true
   become_user: "{{ brc_user }}"
 
+# npm/catalog steps can be skipped for backend_only deployments because
+# the catalog output files are committed to the repo and pulled with git
 - name: "Install npm dependencies ({{ env.name }})"
   ansible.builtin.command:
     cmd: npm ci
@@ -29,6 +31,7 @@
   become_user: "{{ brc_user }}"
   register: npm_install
   changed_when: "'added' in npm_install.stdout"
+  when: not (backend_only | default(false))
 
 - name: "Build catalog data ({{ env.name }})"
   ansible.builtin.command:
@@ -36,6 +39,7 @@
     chdir: "{{ env_deploy_dir }}"
   become_user: "{{ brc_user }}"
   changed_when: true
+  when: not (backend_only | default(false))
 
 - name: "Template backend environment file ({{ env.name }})"
   ansible.builtin.template:
