@@ -79,7 +79,7 @@
   become_user: "{{ brc_user }}"
   environment:
     APP_VERSION: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
-  when: git_pull.changed or env_template.changed or compose_template.changed
+  when: git_pull.changed or env_template.changed or compose_template.changed or (force_rebuild | default(false))
   register: docker_restart
 
 - name: "Wait for backend to be healthy ({{ env.name }})"
