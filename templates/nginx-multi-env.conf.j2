@@ -83,7 +83,7 @@ server {
 
     # Root - backend only, no frontend
     location / {
-        return 200 "BRC Analytics API ({{ env.name }})\n\nAPI Documentation: /api/docs\nHealth: /api/v1/health\n";
+        return 200 "BRC Analytics API ({{ env.name }})\n\nAPI Documentation: /api/v1/docs\nHealth: /api/v1/health\n";
         add_header Content-Type text/plain;
     }
 }
