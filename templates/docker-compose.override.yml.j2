@@ -16,3 +16,4 @@ services:
       - ./nginx-ssl/default.conf:/etc/nginx/conf.d/default.conf:ro
       # Mount entire /etc/letsencrypt since live/ contains symlinks to archive/
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - {{ brc_deploy_dir }}/out:/usr/share/nginx/html:ro
