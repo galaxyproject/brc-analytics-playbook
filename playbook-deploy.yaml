@@ -42,6 +42,44 @@
       changed_when: true
       when: brc_environments is not defined
 
+    # Set up production environment for Next.js build
+    - name: Copy production environment for Next.js build
+      ansible.builtin.copy:
+        src: "{{ brc_deploy_dir }}/site-config/brc-analytics/prod/.env"
+        dest: "{{ brc_deploy_dir }}/.env.production"
+        remote_src: true
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0644"
+      when: brc_environments is not defined
+
+    # Sync static API data files into public/ for the build
+    - name: Sync static API files
+      ansible.builtin.command:
+        cmd: bash scripts/sync-api-brc-analytics.sh
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      changed_when: true
+      when: brc_environments is not defined
+
+    # Set version info (git hash, build date)
+    - name: Set version info
+      ansible.builtin.command:
+        cmd: bash scripts/set-version.sh
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      changed_when: true
+      when: brc_environments is not defined
+
+    # Build Next.js static export → produces out/ directory
+    - name: Build Next.js static export
+      ansible.builtin.command:
+        cmd: npm run build:prod -- --no-lint
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      changed_when: true
+      when: brc_environments is not defined
+
     # Template backend .env file
     - name: Template backend environment file
       ansible.builtin.template:
@@ -135,6 +173,17 @@
         owner: "{{ brc_user }}"
         group: "{{ brc_group }}"
         mode: "0644"
+      when: brc_environments is not defined
+
+    # Ensure out/ exists so the nginx volume mount doesn't fail
+    # (protects against make restart without a prior frontend build)
+    - name: Ensure frontend output directory exists
+      ansible.builtin.file:
+        path: "{{ brc_deploy_dir }}/out"
+        state: directory
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0755"
       when: brc_environments is not defined
 
     # Build Docker images
