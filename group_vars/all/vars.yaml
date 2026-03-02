@@ -19,7 +19,7 @@ brc_group: brc-analytics
 docker_compose_project: brc-analytics
 
 # Node.js version for catalog builds
-nodejs_version: "20"
+nodejs_version: "22"
 
 # SSL/TLS
 # ssl_mode options: system (use existing certs), vault (from ansible vault), self_signed, letsencrypt
