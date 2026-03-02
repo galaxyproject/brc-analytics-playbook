@@ -61,6 +61,52 @@
       become_user: "{{ brc_user }}"
       when: brc_environments is not defined and git_pull.changed and npm_changes.stdout | length > 0
 
+    # Check for frontend source changes
+    - name: Check for frontend source changes
+      ansible.builtin.command:
+        cmd: git diff --name-only HEAD@{1} HEAD -- app/ pages/ site-config/ public/ next.config.mjs catalog/
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      register: frontend_changes
+      changed_when: false
+      failed_when: false
+      when: brc_environments is not defined and git_pull.changed
+
+    # Rebuild Next.js static export if frontend or catalog changed
+    - name: Sync static API files (if rebuilding frontend)
+      ansible.builtin.command:
+        cmd: bash scripts/sync-api-brc-analytics.sh
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      when: >
+        brc_environments is not defined
+        and git_pull.changed
+        and (frontend_changes.stdout | default('') | length > 0
+             or catalog_rebuild.changed | default(false))
+
+    - name: Set version info (if rebuilding frontend)
+      ansible.builtin.command:
+        cmd: bash scripts/set-version.sh
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      when: >
+        brc_environments is not defined
+        and git_pull.changed
+        and (frontend_changes.stdout | default('') | length > 0
+             or catalog_rebuild.changed | default(false))
+
+    - name: Rebuild Next.js static export (if source changed)
+      ansible.builtin.command:
+        cmd: npm run build:prod -- --no-lint
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      register: frontend_rebuild
+      when: >
+        brc_environments is not defined
+        and git_pull.changed
+        and (frontend_changes.stdout | default('') | length > 0
+             or catalog_rebuild.changed | default(false))
+
     # Re-template configuration files
     - name: Template backend environment file
       ansible.builtin.template:
@@ -92,6 +138,16 @@
       register: nginx_template
       when: brc_environments is not defined
 
+    # Ensure out/ exists so the nginx volume mount doesn't fail
+    - name: Ensure frontend output directory exists
+      ansible.builtin.file:
+        path: "{{ brc_deploy_dir }}/out"
+        state: directory
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0755"
+      when: brc_environments is not defined
+
     # Rebuild Docker images
     - name: Rebuild Docker images
       ansible.builtin.command:
@@ -109,7 +165,13 @@
         cmd: docker compose up -d --force-recreate
         chdir: "{{ brc_backend_dir }}"
       become_user: "{{ brc_user }}"
-      when: brc_environments is not defined and (git_pull.changed or env_template.changed or compose_template.changed or nginx_template.changed)
+      when: >
+        brc_environments is not defined
+        and (git_pull.changed
+             or env_template.changed
+             or compose_template.changed
+             or nginx_template.changed
+             or frontend_rebuild.changed | default(false))
       register: docker_restart
 
     # Wait for health check
@@ -133,6 +195,7 @@
           Changes:
           - Repository updated: {{ git_pull.changed }}
           - Catalog rebuilt: {{ catalog_rebuild.changed | default(false) }}
+          - Frontend rebuilt: {{ frontend_rebuild.changed | default(false) }}
           - Services restarted: {{ docker_restart.changed | default(false) }}
 
           Service URL: https://{{ brc_domain }}
