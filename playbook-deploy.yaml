@@ -209,7 +209,7 @@
     # Start services
     - name: Start Docker services
       ansible.builtin.command:
-        cmd: docker compose up -d
+        cmd: docker compose up -d --remove-orphans
         chdir: "{{ brc_backend_dir }}"
       become_user: "{{ brc_user }}"
       register: docker_up

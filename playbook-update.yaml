@@ -154,21 +154,31 @@
         mode: "0755"
       when: brc_environments is not defined
 
-    # Rebuild Docker images
-    - name: Rebuild Docker images
+    # Check for backend changes that require a Docker image rebuild
+    - name: Check for backend source changes
+      ansible.builtin.command:
+        cmd: git diff --name-only HEAD@{1} HEAD -- backend/
+        chdir: "{{ brc_deploy_dir }}"
+      become_user: "{{ brc_user }}"
+      register: backend_changes
+      changed_when: false
+      failed_when: false
+      when: brc_environments is not defined and git_pull.changed
+
+    - name: Rebuild Docker images (if backend changed)
       ansible.builtin.command:
         cmd: docker compose build
         chdir: "{{ brc_backend_dir }}"
       become_user: "{{ brc_user }}"
       environment:
         APP_VERSION: "{{ lookup('file', brc_deploy_dir + '/package.json') | from_json | json_query('version') }}"
-      when: brc_environments is not defined and git_pull.changed
+      when: brc_environments is not defined and git_pull.changed and backend_changes.stdout | default('') | length > 0
       register: docker_build
 
-    # Restart services
+    # Restart services (compose detects config/image changes and only recreates what's needed)
     - name: Restart services
       ansible.builtin.command:
-        cmd: docker compose up -d --force-recreate
+        cmd: docker compose up -d --remove-orphans
         chdir: "{{ brc_backend_dir }}"
       become_user: "{{ brc_user }}"
       when: >
