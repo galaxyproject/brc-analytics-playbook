@@ -15,7 +15,13 @@ ANSIBLE_PLAYBOOK = $(VENV)/bin/ansible-playbook -i $(INVENTORY)
 ANSIBLE_GALAXY = $(VENV)/bin/ansible-galaxy
 PIP = $(VENV)/bin/pip
 
-.PHONY: setup sudo bootstrap deploy update update-staging update-beta status restart requirements cert-renew cert-generate logs shell help
+# Wrap a command with sudo keepalive so long-running playbooks don't lose credentials
+define with-sudo
+	@sudo -v
+	@bash -c '(while sudo -v; do sleep 55; done) & PID=$$!; trap "kill $$PID 2>/dev/null" EXIT; $(1)'
+endef
+
+.PHONY: setup bootstrap deploy update update-staging update-beta status restart requirements cert-renew cert-generate logs shell help
 
 # First-time setup: create venv, install Ansible, install Galaxy collections
 setup:
@@ -26,11 +32,6 @@ setup:
 	@echo ""
 	@echo "Setup complete! Now run: make bootstrap"
 
-# Cache sudo credentials before running privileged playbooks
-sudo:
-	@echo "Caching sudo credentials..."
-	@sudo -l > /dev/null
-
 # Install/update Ansible Galaxy requirements
 requirements: $(VENV)
 	$(ANSIBLE_GALAXY) collection install -r requirements.yaml
@@ -40,36 +41,36 @@ $(VENV):
 	@exit 1
 
 # Initial system setup: Docker, Node.js, certbot, service user
-bootstrap: sudo
-	$(ANSIBLE_PLAYBOOK) playbook-bootstrap.yaml --limit=$(HOSTNAME)
+bootstrap:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-bootstrap.yaml --limit=$(HOSTNAME))
 
 # Full deployment: clone repo, build catalog, obtain SSL cert, start services
-deploy: sudo
-	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME)
+deploy:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME))
 
 # Update deployment: pull changes, rebuild, restart
-update: sudo
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME)
+update:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME))
 
 # Update only staging environment (multi-env hosts)
-update-staging: sudo
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging
+update-staging:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging)
 
 # Update only beta environment (multi-env hosts)
-update-beta: sudo
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta
+update-beta:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta)
 
 # Check service status (no sudo required)
 status:
 	$(ANSIBLE_PLAYBOOK) playbook-status.yaml --limit=$(HOSTNAME)
 
 # Restart services
-restart: sudo
-	$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --limit=$(HOSTNAME)
+restart:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --limit=$(HOSTNAME))
 
 # Force certificate renewal
-cert-renew: sudo
-	$(ANSIBLE_PLAYBOOK) playbook-cert-renew.yaml --limit=$(HOSTNAME)
+cert-renew:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-cert-renew.yaml --limit=$(HOSTNAME))
 
 # View container logs
 logs:
