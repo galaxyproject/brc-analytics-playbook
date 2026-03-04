@@ -43,9 +43,9 @@
       when: brc_environments is not defined
 
     # Set up production environment for Next.js build
-    - name: Copy production environment for Next.js build
+    - name: Copy environment config for Next.js build
       ansible.builtin.copy:
-        src: "{{ brc_deploy_dir }}/site-config/brc-analytics/prod/.env"
+        src: "{{ brc_deploy_dir }}/site-config/brc-analytics/{{ brc_site_config }}/.env"
         dest: "{{ brc_deploy_dir }}/.env.production"
         remote_src: true
         owner: "{{ brc_user }}"

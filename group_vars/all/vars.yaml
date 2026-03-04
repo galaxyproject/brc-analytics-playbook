@@ -6,6 +6,9 @@ brc_app_name: brc-analytics
 brc_repo_url: https://github.com/galaxyproject/brc-analytics.git
 brc_repo_branch: main
 
+# Site config (maps to site-config/brc-analytics/{prod,dev}/)
+brc_site_config: prod
+
 # Paths
 brc_deploy_dir: /opt/brc-analytics
 brc_backend_dir: "{{ brc_deploy_dir }}/backend"
