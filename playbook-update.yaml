@@ -73,15 +73,12 @@
       when: brc_environments is not defined and git_pull.changed
 
     # Rebuild Next.js static export if frontend or catalog changed
-    # The npm build script handles .env copy, sync-api, set-version, and next build
     - block:
         - name: Rebuild Next.js static export
           ansible.builtin.command:
             cmd: npm run {{ brc_build_script }} -- --no-lint
             chdir: "{{ brc_deploy_dir }}"
           become_user: "{{ brc_user }}"
-          environment:
-            NEXT_PUBLIC_ENA_PROXY_DOMAIN: ""
           register: frontend_rebuild
       when: >
         brc_environments is not defined
