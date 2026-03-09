@@ -82,10 +82,10 @@ shell:
 
 # Create/edit vault encrypted files
 vault-edit:
-	ansible-vault edit group_vars/all/vault.yaml
+	$(VENV)/bin/ansible-vault edit group_vars/all/vault.yaml
 
 vault-create:
-	ansible-vault create group_vars/all/vault.yaml
+	$(VENV)/bin/ansible-vault create group_vars/all/vault.yaml
 
 # Generate SSL certificate locally using DNS-01 challenge (requires AWS creds)
 # Usage: make cert-generate DOMAIN=api.brc-analytics.org
