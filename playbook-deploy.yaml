@@ -116,6 +116,15 @@
       when: ssl_mode == 'self_signed' and not ssl_cert_stat.stat.exists and brc_environments is not defined
 
     # Let's Encrypt certificate (requires port 80 open)
+    - name: Stop Docker services for certbot standalone challenge
+      ansible.builtin.command:
+        cmd: docker compose down
+        chdir: "{{ brc_backend_dir }}"
+      become_user: "{{ brc_user }}"
+      failed_when: false
+      changed_when: false
+      when: ssl_mode == 'letsencrypt' and not ssl_cert_stat.stat.exists and brc_environments is not defined
+
     - name: Obtain SSL certificate via certbot
       ansible.builtin.command:
         cmd: >
