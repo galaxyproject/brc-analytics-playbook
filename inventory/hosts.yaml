@@ -17,16 +17,20 @@ all:
         brc-analytics-prod.tacc.utexas.edu:
           brc_environment: production
           brc_domain: platform.brc-analytics.org
-          ssl_cert_path: /etc/letsencrypt/live/brc-analytics-prod.tacc.utexas.edu/fullchain.pem
-          ssl_key_path: /etc/letsencrypt/live/brc-analytics-prod.tacc.utexas.edu/privkey.pem
+          ssl_mode: letsencrypt
+          ssl_cert_email: dannon.baker@gmail.com
+          ssl_cert_path: /etc/letsencrypt/live/platform.brc-analytics.org/fullchain.pem
+          ssl_key_path: /etc/letsencrypt/live/platform.brc-analytics.org/privkey.pem
 
     development:
       hosts:
         brc-analytics-dev.tacc.utexas.edu:
           brc_environment: development
-          brc_domain: platform-dev.brc-analytics.org
-          ssl_cert_path: /etc/letsencrypt/live/brc-analytics-dev.tacc.utexas.edu-0001/fullchain.pem
-          ssl_key_path: /etc/letsencrypt/live/brc-analytics-dev.tacc.utexas.edu-0001/privkey.pem
+          brc_domain: dev.brc-analytics.org
+          ssl_mode: letsencrypt
+          ssl_cert_email: dannon.baker@gmail.com
+          ssl_cert_path: /etc/letsencrypt/live/dev.brc-analytics.org/fullchain.pem
+          ssl_key_path: /etc/letsencrypt/live/dev.brc-analytics.org/privkey.pem
 
     # Jetstream hosts run multiple environments on a single VM
     # using host-level nginx for SSL/routing
