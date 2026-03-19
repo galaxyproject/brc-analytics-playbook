@@ -133,6 +133,7 @@
           --agree-tos
           --email {{ ssl_cert_email }}
           --domain {{ brc_domain }}
+          {% if brc_domain_aliases is defined %}{% for alias in brc_domain_aliases %}--domain {{ alias }} {% endfor %}{% endif %}
       when: ssl_mode == 'letsencrypt' and not ssl_cert_stat.stat.exists and brc_environments is not defined
       register: certbot_result
 

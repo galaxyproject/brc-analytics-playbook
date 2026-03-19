@@ -127,3 +127,20 @@ server {
         }
     }
 }
+
+{% if brc_domain_aliases is defined %}
+# Redirect alias domains to primary
+server {
+    listen 80;
+    server_name {{ brc_domain_aliases | join(' ') }};
+    return 301 https://{{ brc_domain }}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name {{ brc_domain_aliases | join(' ') }};
+    ssl_certificate {{ ssl_cert_path }};
+    ssl_certificate_key {{ ssl_key_path }};
+    return 301 https://{{ brc_domain }}$request_uri;
+}
+{% endif %}

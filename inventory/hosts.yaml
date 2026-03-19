@@ -16,11 +16,14 @@ all:
       hosts:
         brc-analytics-prod.tacc.utexas.edu:
           brc_environment: production
-          brc_domain: prod.brc-analytics.org
+          brc_domain: brc-analytics.org
+          brc_domain_aliases:
+            - prod.brc-analytics.org
+            - www.brc-analytics.org
           ssl_mode: letsencrypt
           ssl_cert_email: dannon.baker@gmail.com
-          ssl_cert_path: /etc/letsencrypt/live/prod.brc-analytics.org/fullchain.pem
-          ssl_key_path: /etc/letsencrypt/live/prod.brc-analytics.org/privkey.pem
+          ssl_cert_path: /etc/letsencrypt/live/brc-analytics.org/fullchain.pem
+          ssl_key_path: /etc/letsencrypt/live/brc-analytics.org/privkey.pem
 
     development:
       hosts:
