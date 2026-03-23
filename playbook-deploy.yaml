@@ -240,6 +240,73 @@
         daemon_reload: true
       when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
+    # Nightly auto-update (dev only)
+    - name: Create auto-update script
+      ansible.builtin.copy:
+        dest: /usr/local/bin/brc-auto-update.sh
+        content: |
+          #!/bin/bash
+          set -euo pipefail
+          cd {{ brc_playbook_dir }}
+          git fetch origin
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/{{ brc_repo_branch }})" ]; then
+            echo "$(date): changes detected, running update"
+            git pull
+            make update
+          else
+            echo "$(date): no changes"
+          fi
+        mode: "0755"
+      when: brc_auto_update | default(false) and brc_environments is not defined
+
+    - name: Create auto-update systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/brc-auto-update.service
+        content: |
+          [Unit]
+          Description=BRC Analytics nightly auto-update
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/brc-auto-update.sh
+          User=root
+          WorkingDirectory={{ brc_playbook_dir }}
+        mode: "0644"
+      when: brc_auto_update | default(false) and brc_environments is not defined
+
+    - name: Create auto-update systemd timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/brc-auto-update.timer
+        content: |
+          [Unit]
+          Description=Run BRC Analytics auto-update nightly
+
+          [Timer]
+          OnCalendar=*-*-* 04:00:00
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+        mode: "0644"
+      when: brc_auto_update | default(false) and brc_environments is not defined
+
+    - name: Enable auto-update timer
+      ansible.builtin.systemd:
+        name: brc-auto-update.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: brc_auto_update | default(false) and brc_environments is not defined
+
+    - name: Disable auto-update timer
+      ansible.builtin.systemd:
+        name: brc-auto-update.timer
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+      when: not (brc_auto_update | default(false)) and brc_environments is not defined
+
     - name: Display deployment completion message (single-env)
       ansible.builtin.debug:
         msg: |

@@ -9,6 +9,9 @@ brc_repo_branch: main
 # Use dev build script for frontend builds
 brc_build_script: "build:dev"
 
+# Nightly auto-update from main
+brc_auto_update: true
+
 # API settings - more verbose logging in dev
 api_log_level: DEBUG
 

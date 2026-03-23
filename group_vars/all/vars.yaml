@@ -43,6 +43,10 @@ health_check_delay: 10
 redis_maxmemory: 256mb
 redis_maxmemory_policy: allkeys-lru
 
+# Auto-update (disabled by default, enabled for dev)
+brc_auto_update: false
+brc_playbook_dir: /home/brc-admin/brc-analytics-playbook
+
 # Backend API settings (non-sensitive)
 api_log_level: INFO
 api_rate_limit_requests: 100
