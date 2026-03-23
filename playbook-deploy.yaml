@@ -279,10 +279,10 @@
         dest: /etc/systemd/system/brc-auto-update.timer
         content: |
           [Unit]
-          Description=Run BRC Analytics auto-update nightly
+          Description=Run BRC Analytics auto-update hourly
 
           [Timer]
-          OnCalendar=*-*-* 04:00:00
+          OnCalendar=hourly
           Persistent=true
 
           [Install]
