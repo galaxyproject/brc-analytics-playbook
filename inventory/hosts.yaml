@@ -6,7 +6,6 @@
 all:
   vars:
     ansible_user: brc-admin
-    ansible_become: true
 
   children:
     production:

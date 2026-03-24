@@ -15,7 +15,6 @@
     dest: "{{ env_deploy_dir }}"
     version: "{{ env.branch }}"
     force: true
-  become_user: "{{ brc_user }}"
   register: git_pull
 
 # npm/catalog steps can be skipped for backend_only deployments because
@@ -24,7 +23,6 @@
   ansible.builtin.command:
     cmd: git diff --name-only HEAD@{1} HEAD -- catalog/source/
     chdir: "{{ env_deploy_dir }}"
-  become_user: "{{ brc_user }}"
   register: catalog_changes
   changed_when: false
   failed_when: false
@@ -34,14 +32,12 @@
   ansible.builtin.command:
     cmd: npm run build-brc-db
     chdir: "{{ env_deploy_dir }}"
-  become_user: "{{ brc_user }}"
   when: git_pull.changed and not (backend_only | default(false)) and catalog_changes.stdout | default('') | length > 0
 
 - name: "Check for package-lock changes ({{ env.name }})"
   ansible.builtin.command:
     cmd: git diff --name-only HEAD@{1} HEAD -- package-lock.json
     chdir: "{{ env_deploy_dir }}"
-  become_user: "{{ brc_user }}"
   register: npm_changes
   changed_when: false
   failed_when: false
@@ -51,15 +47,12 @@
   ansible.builtin.command:
     cmd: npm ci
     chdir: "{{ env_deploy_dir }}"
-  become_user: "{{ brc_user }}"
   when: git_pull.changed and not (backend_only | default(false)) and npm_changes.stdout | default('') | length > 0
 
 - name: "Template backend environment file ({{ env.name }})"
   ansible.builtin.template:
     src: templates/api.env.j2
     dest: "{{ env_backend_dir }}/api/.env"
-    owner: "{{ brc_user }}"
-    group: "{{ brc_group }}"
     mode: "0600"
   register: env_template
 
@@ -67,8 +60,6 @@
   ansible.builtin.template:
     src: templates/docker-compose.backend-only.yml.j2
     dest: "{{ env_backend_dir }}/docker-compose.override.yml"
-    owner: "{{ brc_user }}"
-    group: "{{ brc_group }}"
     mode: "0644"
   register: compose_template
 
@@ -76,7 +67,6 @@
   ansible.builtin.command:
     cmd: docker compose -p brc-analytics-{{ env.name }} up -d --build --force-recreate
     chdir: "{{ env_backend_dir }}"
-  become_user: "{{ brc_user }}"
   environment:
     APP_VERSION: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
   when: git_pull.changed or env_template.changed or compose_template.changed or (force_rebuild | default(false))

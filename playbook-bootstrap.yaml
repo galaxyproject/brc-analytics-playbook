@@ -1,7 +1,7 @@
 # Bootstrap Playbook - Initial system setup
 # Run once on a fresh VM to prepare for deployment
 #
-# Usage: make bootstrap
+# Usage: make bootstrap-dev  (or bootstrap-prod)
 ---
 - name: Bootstrap BRC Analytics server
   hosts: all
@@ -69,23 +69,12 @@
         enabled: true
         state: started
 
-    # Service user
-    - name: Create application group
-      ansible.builtin.group:
-        name: "{{ brc_group }}"
-        system: true
-        state: present
-
-    - name: Create application user
+    # Ensure brc-admin can run Docker
+    - name: Add brc-admin to docker group
       ansible.builtin.user:
         name: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         groups: docker
-        system: true
-        shell: /bin/bash
-        home: "/home/{{ brc_user }}"
-        create_home: true
-        state: present
+        append: true
 
     # Deployment directory (single-environment hosts)
     - name: Create deployment directory
@@ -193,11 +182,10 @@
           Bootstrap complete!
 
           Next steps:
-          1. Run 'make deploy' to deploy the application
+          1. Run 'make deploy-dev' or 'make deploy-prod' to deploy the application
 
           Installed:
           - Docker and docker-compose plugin
           - Node.js {{ nodejs_version }}
           - Certbot for SSL certificates
-          - Service user: {{ brc_user }}
           - Deploy directory: {{ brc_deploy_dir }}

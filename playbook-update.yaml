@@ -1,11 +1,10 @@
 # Update Playbook - Update existing deployment
 # Pulls latest changes, rebuilds if needed, restarts services
 #
-# Usage: make update
+# Usage: make update-dev  (or update-prod)
 ---
 - name: Update BRC Analytics deployment
   hosts: all
-  become: true
 
   tasks:
     # ============================================================
@@ -19,7 +18,6 @@
         dest: "{{ brc_deploy_dir }}"
         version: "{{ brc_repo_branch }}"
         force: false
-      become_user: "{{ brc_user }}"
       register: git_pull
       when: brc_environments is not defined
 
@@ -28,7 +26,6 @@
       ansible.builtin.command:
         cmd: git diff --name-only HEAD@{1} HEAD -- catalog/source/
         chdir: "{{ brc_deploy_dir }}"
-      become_user: "{{ brc_user }}"
       register: catalog_changes
       changed_when: false
       failed_when: false
@@ -39,7 +36,6 @@
       ansible.builtin.command:
         cmd: npm run build-brc-db
         chdir: "{{ brc_deploy_dir }}"
-      become_user: "{{ brc_user }}"
       when: brc_environments is not defined and git_pull.changed and catalog_changes.stdout | length > 0
       register: catalog_rebuild
 
@@ -48,7 +44,6 @@
       ansible.builtin.command:
         cmd: git diff --name-only HEAD@{1} HEAD -- package-lock.json
         chdir: "{{ brc_deploy_dir }}"
-      become_user: "{{ brc_user }}"
       register: npm_changes
       changed_when: false
       failed_when: false
@@ -58,7 +53,6 @@
       ansible.builtin.command:
         cmd: npm ci
         chdir: "{{ brc_deploy_dir }}"
-      become_user: "{{ brc_user }}"
       when: brc_environments is not defined and git_pull.changed and npm_changes.stdout | length > 0
 
     # Check for frontend source changes
@@ -66,7 +60,6 @@
       ansible.builtin.command:
         cmd: git diff --name-only HEAD@{1} HEAD -- app/ pages/ site-config/ public/ next.config.mjs catalog/
         chdir: "{{ brc_deploy_dir }}"
-      become_user: "{{ brc_user }}"
       register: frontend_changes
       changed_when: false
       failed_when: false
@@ -78,7 +71,6 @@
           ansible.builtin.command:
             cmd: npm run {{ brc_build_script }} -- --no-lint
             chdir: "{{ brc_deploy_dir }}"
-          become_user: "{{ brc_user }}"
           register: frontend_rebuild
       when: >
         brc_environments is not defined
@@ -91,8 +83,6 @@
       ansible.builtin.template:
         src: templates/api.env.j2
         dest: "{{ brc_backend_dir }}/api/.env"
-        owner: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         mode: "0600"
       register: env_template
       when: brc_environments is not defined
@@ -101,8 +91,6 @@
       ansible.builtin.template:
         src: templates/docker-compose.override.yml.j2
         dest: "{{ brc_backend_dir }}/docker-compose.override.yml"
-        owner: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         mode: "0644"
       register: compose_template
       when: brc_environments is not defined
@@ -111,8 +99,6 @@
       ansible.builtin.template:
         src: templates/nginx-ssl.conf.j2
         dest: "{{ brc_backend_dir }}/nginx-ssl/default.conf"
-        owner: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         mode: "0644"
       register: nginx_template
       when: brc_environments is not defined
@@ -122,8 +108,6 @@
       ansible.builtin.file:
         path: "{{ brc_deploy_dir }}/out"
         state: directory
-        owner: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         mode: "0755"
       when: brc_environments is not defined
 
@@ -132,7 +116,6 @@
       ansible.builtin.command:
         cmd: git diff --name-only HEAD@{1} HEAD -- backend/
         chdir: "{{ brc_deploy_dir }}"
-      become_user: "{{ brc_user }}"
       register: backend_changes
       changed_when: false
       failed_when: false
@@ -142,18 +125,18 @@
       ansible.builtin.command:
         cmd: docker compose build
         chdir: "{{ brc_backend_dir }}"
-      become_user: "{{ brc_user }}"
       environment:
         APP_VERSION: "{{ lookup('file', brc_deploy_dir + '/package.json') | from_json | json_query('version') }}"
       when: brc_environments is not defined and git_pull.changed and backend_changes.stdout | default('') | length > 0
       register: docker_build
 
-    # Restart services (compose detects config/image changes and only recreates what's needed)
+    # Restart services
+    # Use --force-recreate when frontend was rebuilt, because the Next.js build
+    # replaces the out/ directory (new inode) and Docker's bind mount goes stale
     - name: Restart services
       ansible.builtin.command:
-        cmd: docker compose up -d --remove-orphans
+        cmd: docker compose up -d --remove-orphans {{ '--force-recreate' if frontend_rebuild.changed | default(false) else '' }}
         chdir: "{{ brc_backend_dir }}"
-      become_user: "{{ brc_user }}"
       when: >
         brc_environments is not defined
         and (git_pull.changed
@@ -194,7 +177,6 @@
     # MULTI-ENVIRONMENT HOSTS (Jetstream)
     # ============================================================
 
-    # Use env_filter to update only specific environments (e.g., -e env_filter=staging)
     - name: Update each environment
       ansible.builtin.include_tasks: tasks/update-environment.yaml
       loop: "{{ brc_environments }}"
@@ -207,6 +189,7 @@
         src: templates/nginx-multi-env.conf.j2
         dest: /etc/nginx/conf.d/brc-analytics.conf
         mode: "0644"
+      become: true
       when: brc_environments is defined
       notify: Reload nginx
 
@@ -228,7 +211,6 @@
     - name: Clean up unused Docker images and build cache
       ansible.builtin.command:
         cmd: docker system prune -af
-      become_user: "{{ brc_user }}"
       register: docker_prune
       changed_when: "'Total reclaimed space: 0B' not in docker_prune.stdout"
 
@@ -237,3 +219,4 @@
       ansible.builtin.systemd:
         name: nginx
         state: reloaded
+      become: true

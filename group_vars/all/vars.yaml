@@ -14,9 +14,9 @@ brc_deploy_dir: /opt/brc-analytics
 brc_backend_dir: "{{ brc_deploy_dir }}/backend"
 brc_catalog_dir: "{{ brc_deploy_dir }}/catalog"
 
-# Service user
-brc_user: brc-analytics
-brc_group: brc-analytics
+# Service user (same as ansible_user -- no become_user needed for app tasks)
+brc_user: brc-admin
+brc_group: brc-admin
 
 # Docker
 docker_compose_project: brc-analytics

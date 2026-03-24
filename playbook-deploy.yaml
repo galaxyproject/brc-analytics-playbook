@@ -1,11 +1,10 @@
 # Deploy Playbook - Full deployment
 # Clones repo, builds catalog, obtains SSL cert, starts services
 #
-# Usage: make deploy
+# Usage: make deploy-dev  (or deploy-prod)
 ---
 - name: Deploy BRC Analytics
   hosts: all
-  become: true
 
   tasks:
     # ============================================================
@@ -19,7 +18,6 @@
         dest: "{{ brc_deploy_dir }}"
         version: "{{ brc_repo_branch }}"
         force: false
-      become_user: "{{ brc_user }}"
       when: brc_environments is not defined
 
     # Install npm dependencies
@@ -27,7 +25,6 @@
       ansible.builtin.command:
         cmd: npm ci
         chdir: "{{ brc_deploy_dir }}"
-      become_user: "{{ brc_user }}"
       register: npm_install
       changed_when: "'added' in npm_install.stdout"
       when: brc_environments is not defined
@@ -37,17 +34,15 @@
       ansible.builtin.command:
         cmd: npm run build-brc-db
         chdir: "{{ brc_deploy_dir }}"
-      become_user: "{{ brc_user }}"
       register: catalog_build
       changed_when: true
       when: brc_environments is not defined
 
-    # Build Next.js static export → produces out/ directory
+    # Build Next.js static export
     - name: Build Next.js static export
       ansible.builtin.command:
         cmd: npm run {{ brc_build_script }} -- --no-lint
         chdir: "{{ brc_deploy_dir }}"
-      become_user: "{{ brc_user }}"
       changed_when: true
       when: brc_environments is not defined
 
@@ -56,8 +51,6 @@
       ansible.builtin.template:
         src: templates/api.env.j2
         dest: "{{ brc_backend_dir }}/api/.env"
-        owner: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         mode: "0600"
       when: brc_environments is not defined
 
@@ -66,36 +59,32 @@
       ansible.builtin.template:
         src: templates/docker-compose.override.yml.j2
         dest: "{{ brc_backend_dir }}/docker-compose.override.yml"
-        owner: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         mode: "0644"
       when: brc_environments is not defined
 
     # SSL Certificate handling
-    # ssl_mode: system - certs managed externally (e.g., by TACC NSO), paths in inventory
-    # ssl_mode: vault - deploy from ansible vault
-    # ssl_mode: self_signed - generate self-signed cert
-    # ssl_mode: letsencrypt - obtain via certbot
-
     - name: Create SSL certificate directory
       ansible.builtin.file:
         path: "{{ ssl_cert_dir }}/{{ brc_domain }}"
         state: directory
         mode: "0755"
+      become: true
       when: ssl_mode != 'system' and brc_environments is not defined
 
     - name: Check if SSL certificate exists
       ansible.builtin.stat:
         path: "{{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem"
       register: ssl_cert_stat
+      become: true
       when: ssl_mode != 'system' and brc_environments is not defined
 
-    # Deploy certificate from vault (preferred - certs generated locally with DNS-01)
+    # Deploy certificate from vault
     - name: Deploy SSL certificate from vault
       ansible.builtin.copy:
         content: "{{ vault_ssl_fullchain }}"
         dest: "{{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem"
         mode: "0644"
+      become: true
       when: ssl_mode == 'vault' and vault_ssl_fullchain is defined and brc_environments is not defined
 
     - name: Deploy SSL private key from vault
@@ -103,6 +92,7 @@
         content: "{{ vault_ssl_privkey }}"
         dest: "{{ ssl_cert_dir }}/{{ brc_domain }}/privkey.pem"
         mode: "0600"
+      become: true
       when: ssl_mode == 'vault' and vault_ssl_privkey is defined and brc_environments is not defined
 
     # Self-signed certificate (fallback for testing)
@@ -113,14 +103,14 @@
           -keyout {{ ssl_cert_dir }}/{{ brc_domain }}/privkey.pem
           -out {{ ssl_cert_dir }}/{{ brc_domain }}/fullchain.pem
           -subj "/CN={{ brc_domain }}/O=BRC Analytics/C=US"
+      become: true
       when: ssl_mode == 'self_signed' and not ssl_cert_stat.stat.exists and brc_environments is not defined
 
-    # Let's Encrypt certificate (requires port 80 open)
+    # Let's Encrypt certificate
     - name: Stop Docker services for certbot standalone challenge
       ansible.builtin.command:
         cmd: docker compose down
         chdir: "{{ brc_backend_dir }}"
-      become_user: "{{ brc_user }}"
       failed_when: false
       changed_when: false
       when: ssl_mode == 'letsencrypt' and not ssl_cert_stat.stat.exists and brc_environments is not defined
@@ -134,6 +124,7 @@
           --email {{ ssl_cert_email }}
           --domain {{ brc_domain }}
           {% if brc_domain_aliases is defined %}{% for alias in brc_domain_aliases %}--domain {{ alias }} {% endfor %}{% endif %}
+      become: true
       when: ssl_mode == 'letsencrypt' and not ssl_cert_stat.stat.exists and brc_environments is not defined
       register: certbot_result
 
@@ -142,8 +133,6 @@
       ansible.builtin.file:
         path: "{{ brc_backend_dir }}/nginx-ssl"
         state: directory
-        owner: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         mode: "0755"
       when: brc_environments is not defined
 
@@ -151,19 +140,14 @@
       ansible.builtin.template:
         src: templates/nginx-ssl.conf.j2
         dest: "{{ brc_backend_dir }}/nginx-ssl/default.conf"
-        owner: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         mode: "0644"
       when: brc_environments is not defined
 
     # Ensure out/ exists so the nginx volume mount doesn't fail
-    # (protects against make restart without a prior frontend build)
     - name: Ensure frontend output directory exists
       ansible.builtin.file:
         path: "{{ brc_deploy_dir }}/out"
         state: directory
-        owner: "{{ brc_user }}"
-        group: "{{ brc_group }}"
         mode: "0755"
       when: brc_environments is not defined
 
@@ -172,7 +156,6 @@
       ansible.builtin.command:
         cmd: docker compose build
         chdir: "{{ brc_backend_dir }}"
-      become_user: "{{ brc_user }}"
       environment:
         APP_VERSION: "{{ lookup('file', brc_deploy_dir + '/package.json') | from_json | json_query('version') }}"
       register: docker_build
@@ -184,7 +167,6 @@
       ansible.builtin.command:
         cmd: docker compose up -d --remove-orphans
         chdir: "{{ brc_backend_dir }}"
-      become_user: "{{ brc_user }}"
       register: docker_up
       changed_when: "'Started' in docker_up.stderr or 'Creating' in docker_up.stderr"
       when: brc_environments is not defined
@@ -217,6 +199,7 @@
           [Install]
           WantedBy=timers.target
         mode: "0644"
+      become: true
       when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
     - name: Create certbot renewal systemd service
@@ -230,6 +213,7 @@
           Type=oneshot
           ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "cd {{ brc_backend_dir }} && docker compose restart frontend"
         mode: "0644"
+      become: true
       when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
     - name: Enable certbot renewal timer
@@ -238,25 +222,49 @@
         enabled: true
         state: started
         daemon_reload: true
+      become: true
       when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
-    # Nightly auto-update (dev only)
+    # Auto-update (dev only)
+    - name: Create auto-update log directory
+      ansible.builtin.file:
+        path: /var/log/brc-analytics
+        state: directory
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0755"
+      become: true
+      when: brc_auto_update | default(false) and brc_environments is not defined
+
     - name: Create auto-update script
       ansible.builtin.copy:
         dest: /usr/local/bin/brc-auto-update.sh
         content: |
           #!/bin/bash
           set -euo pipefail
+
+          LOG_DIR=/var/log/brc-analytics
+          mkdir -p "$LOG_DIR"
+          LOG="$LOG_DIR/auto-update.log"
+
+          exec > >(tee -a "$LOG") 2>&1
+
+          echo ""
+          echo "========== $(date) =========="
           cd {{ brc_playbook_dir }}
           git fetch origin
           if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/{{ brc_repo_branch }})" ]; then
-            echo "$(date): changes detected, running update"
+            echo "Changes detected, running update"
+            echo "Local:  $(git rev-parse --short HEAD)"
+            echo "Remote: $(git rev-parse --short origin/{{ brc_repo_branch }})"
             git pull
-            make update
+            {{ brc_playbook_dir }}/.venv/bin/ansible-playbook -i inventory/hosts.yaml playbook-update.yaml --limit=$(hostname --fqdn) -e ansible_connection=local
+            echo "Update finished with exit code $?"
           else
-            echo "$(date): no changes"
+            echo "No changes"
           fi
         mode: "0755"
+      become: true
       when: brc_auto_update | default(false) and brc_environments is not defined
 
     - name: Create auto-update systemd service
@@ -264,14 +272,15 @@
         dest: /etc/systemd/system/brc-auto-update.service
         content: |
           [Unit]
-          Description=BRC Analytics nightly auto-update
+          Description=BRC Analytics auto-update
 
           [Service]
           Type=oneshot
           ExecStart=/usr/local/bin/brc-auto-update.sh
-          User=root
+          User={{ brc_user }}
           WorkingDirectory={{ brc_playbook_dir }}
         mode: "0644"
+      become: true
       when: brc_auto_update | default(false) and brc_environments is not defined
 
     - name: Create auto-update systemd timer
@@ -288,6 +297,7 @@
           [Install]
           WantedBy=timers.target
         mode: "0644"
+      become: true
       when: brc_auto_update | default(false) and brc_environments is not defined
 
     - name: Enable auto-update timer
@@ -296,6 +306,7 @@
         enabled: true
         state: started
         daemon_reload: true
+      become: true
       when: brc_auto_update | default(false) and brc_environments is not defined
 
     - name: Disable auto-update timer
@@ -304,6 +315,7 @@
         enabled: false
         state: stopped
         daemon_reload: true
+      become: true
       failed_when: false
       when: not (brc_auto_update | default(false)) and brc_environments is not defined
 
@@ -317,8 +329,8 @@
 
           Useful commands:
           - View logs: make logs
-          - Check status: make status
-          - Update: make update
+          - Check status: make status-dev / make status-prod
+          - Update: make update-dev / make update-prod
       when: brc_environments is not defined
 
     # ============================================================
@@ -337,6 +349,7 @@
         src: templates/nginx-multi-env.conf.j2
         dest: /etc/nginx/conf.d/brc-analytics.conf
         mode: "0644"
+      become: true
       when: brc_environments is defined
       notify: Reload nginx
 
@@ -351,6 +364,7 @@
           Type=oneshot
           ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "systemctl reload nginx"
         mode: "0644"
+      become: true
       when: brc_environments is defined
 
     - name: Create certbot renewal timer
@@ -368,6 +382,7 @@
           [Install]
           WantedBy=timers.target
         mode: "0644"
+      become: true
       when: brc_environments is defined
 
     - name: Enable certbot renewal timer (multi-env)
@@ -376,6 +391,7 @@
         enabled: true
         state: started
         daemon_reload: true
+      become: true
       when: brc_environments is defined
 
     - name: Display deployment completion message (multi-env)
@@ -387,11 +403,6 @@
           {% for env in brc_environments %}
           - {{ env.name }}: https://{{ env.domain }}
           {% endfor %}
-
-          Useful commands:
-          - View logs: make logs
-          - Check status: make status
-          - Update: make update
       when: brc_environments is defined
 
     # ============================================================
@@ -401,7 +412,6 @@
     - name: Clean up unused Docker images and build cache
       ansible.builtin.command:
         cmd: docker system prune -af
-      become_user: "{{ brc_user }}"
       register: docker_prune
       changed_when: "'Total reclaimed space: 0B' not in docker_prune.stdout"
 
@@ -410,3 +420,4 @@
       ansible.builtin.systemd:
         name: nginx
         state: reloaded
+      become: true

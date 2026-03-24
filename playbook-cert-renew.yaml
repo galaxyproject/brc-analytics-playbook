@@ -1,22 +1,21 @@
 # Certificate Renewal Playbook - Force SSL certificate renewal
 # Usually handled automatically by systemd timer, but can be run manually
 #
-# Usage: make cert-renew
+# Usage: make cert-renew-dev  (or cert-renew-prod)
 ---
 - name: Renew SSL certificates
   hosts: all
-  become: true
 
   tasks:
     - name: Stop nginx to free port 80
       ansible.builtin.command:
         cmd: docker compose stop nginx
         chdir: "{{ brc_backend_dir }}"
-      become_user: "{{ brc_user }}"
 
     - name: Renew certificate
       ansible.builtin.command:
         cmd: certbot renew --force-renewal
+      become: true
       register: renew_result
 
     - name: Display renewal result
@@ -27,7 +26,6 @@
       ansible.builtin.command:
         cmd: docker compose start nginx
         chdir: "{{ brc_backend_dir }}"
-      become_user: "{{ brc_user }}"
 
     - name: Verify health check
       ansible.builtin.uri:
