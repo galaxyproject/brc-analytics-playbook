@@ -15,5 +15,8 @@ brc_auto_update: true
 # API settings - more verbose logging in dev
 api_log_level: DEBUG
 
+# Sentry error tracking
+sentry_dsn: "https://e9b62a8020d937bef98b86074281fd90@sentry.galaxyproject.org/23"
+
 # SSL certificates are managed by TACC NSO (ssl_mode: system)
 # Cert paths are defined in inventory/hosts.yaml per host

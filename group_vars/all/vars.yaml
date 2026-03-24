@@ -51,3 +51,6 @@ brc_playbook_dir: /home/brc-admin/brc-analytics-playbook
 api_log_level: INFO
 api_rate_limit_requests: 100
 api_rate_limit_window: 60
+
+# Sentry error tracking (DSN set per-environment)
+sentry_dsn: ""
