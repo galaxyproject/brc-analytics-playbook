@@ -1,37 +1,33 @@
 # BRC Analytics Playbook
 #
-# Default: remote execution over SSH (requires VPN to TACC).
-# For local execution on a VM: make <target> LOCAL=1
+# Run playbooks locally on TACC VMs with sudo caching
 #
 # Usage:
-#   make setup          - First time: create venv and install Ansible
-#   make deploy-dev     - Full deploy to dev
-#   make deploy-prod    - Full deploy to prod
-#   make update-dev     - Update dev
-#   make update-prod    - Update prod
-#   make status-dev     - Check dev service status
-#   make status-prod    - Check prod service status
+#   make setup      - First time: create venv and install Ansible
+#   make bootstrap  - Initial system setup (Docker, Node.js, certbot)
+#   make deploy     - Full deployment (clone, build, start)
+#   make update     - Update existing deployment
+#   make status     - Check service status
 
+HOSTNAME = $(shell hostname --fqdn)
 INVENTORY = inventory/hosts.yaml
 VENV = .venv
 ANSIBLE_PLAYBOOK = $(VENV)/bin/ansible-playbook -i $(INVENTORY)
 ANSIBLE_GALAXY = $(VENV)/bin/ansible-galaxy
 PIP = $(VENV)/bin/pip
 
-DEV_HOST = brc-analytics-dev.tacc.utexas.edu
-PROD_HOST = brc-analytics-prod.tacc.utexas.edu
 JETSTREAM_HOST = brc-backend.novalocal
 
-# For on-box execution: make <target> LOCAL=1
-ifdef LOCAL
 EXTRA_ARGS += -e ansible_connection=local
-endif
 
-.PHONY: setup requirements check vault-edit vault-create cert-generate help
-.PHONY: bootstrap-dev bootstrap-prod deploy-dev deploy-prod update-dev update-prod
-.PHONY: update-staging update-beta status-dev status-prod status-jetstream
-.PHONY: restart-dev restart-prod cert-renew-dev cert-renew-prod
-.PHONY: logs shell
+# Wrap a command with sudo keepalive so long-running playbooks don't lose credentials
+define with-sudo
+	@sudo -v
+	@bash -c '(while sudo -v; do sleep 55; done) & PID=$$!; trap "kill $$PID 2>/dev/null" EXIT; $(1)'
+endef
+
+.PHONY: setup bootstrap deploy update update-staging update-beta status restart
+.PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help
 
 # --- Setup ---
 
@@ -52,66 +48,39 @@ $(VENV):
 
 # --- Bootstrap (first time on a VM) ---
 
-bootstrap-dev:
-	$(ANSIBLE_PLAYBOOK) playbook-bootstrap.yaml --limit=$(DEV_HOST) $(EXTRA_ARGS)
-
-bootstrap-prod:
-	$(ANSIBLE_PLAYBOOK) playbook-bootstrap.yaml --limit=$(PROD_HOST) $(EXTRA_ARGS)
+bootstrap:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-bootstrap.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
 # --- Deploy (full, from scratch) ---
 
-deploy-dev:
-	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(DEV_HOST) $(EXTRA_ARGS)
-
-deploy-prod:
-	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(PROD_HOST) $(EXTRA_ARGS)
-
-deploy-jetstream:
-	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(JETSTREAM_HOST) $(EXTRA_ARGS)
+deploy:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
 # --- Update (pull, rebuild, restart) ---
 
-update-dev:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(DEV_HOST) $(EXTRA_ARGS)
-
-update-prod:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(PROD_HOST) $(EXTRA_ARGS)
-
-update-jetstream:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(JETSTREAM_HOST) $(EXTRA_ARGS)
+update:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
 update-staging:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(JETSTREAM_HOST) -e env_filter=staging $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging $(EXTRA_ARGS))
 
 update-beta:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(JETSTREAM_HOST) -e env_filter=beta $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS))
 
 # --- Status ---
 
-status-dev:
-	$(ANSIBLE_PLAYBOOK) playbook-status.yaml --limit=$(DEV_HOST) $(EXTRA_ARGS)
-
-status-prod:
-	$(ANSIBLE_PLAYBOOK) playbook-status.yaml --limit=$(PROD_HOST) $(EXTRA_ARGS)
-
-status-jetstream:
-	$(ANSIBLE_PLAYBOOK) playbook-status.yaml --limit=$(JETSTREAM_HOST) $(EXTRA_ARGS)
+status:
+	$(ANSIBLE_PLAYBOOK) playbook-status.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS)
 
 # --- Restart ---
 
-restart-dev:
-	$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --limit=$(DEV_HOST) $(EXTRA_ARGS)
-
-restart-prod:
-	$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --limit=$(PROD_HOST) $(EXTRA_ARGS)
+restart:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
 # --- SSL ---
 
-cert-renew-dev:
-	$(ANSIBLE_PLAYBOOK) playbook-cert-renew.yaml --limit=$(DEV_HOST) $(EXTRA_ARGS)
-
-cert-renew-prod:
-	$(ANSIBLE_PLAYBOOK) playbook-cert-renew.yaml --limit=$(PROD_HOST) $(EXTRA_ARGS)
+cert-renew:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-cert-renew.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
 cert-generate:
 ifndef DOMAIN
@@ -160,26 +129,32 @@ check:
 help:
 	@echo "BRC Analytics Playbook"
 	@echo ""
-	@echo "Remote execution (default, requires VPN):"
-	@echo "  make deploy-dev       - Full deploy to dev"
-	@echo "  make deploy-prod      - Full deploy to prod"
-	@echo "  make deploy-jetstream - Full deploy to Jetstream"
-	@echo "  make update-dev       - Update dev"
-	@echo "  make update-prod      - Update prod"
-	@echo "  make update-jetstream - Update Jetstream (all envs)"
-	@echo "  make update-staging   - Update Jetstream staging only"
-	@echo "  make update-beta      - Update Jetstream beta only"
-	@echo "  make status-dev       - Check dev service status"
-	@echo "  make status-prod      - Check prod service status"
-	@echo "  make restart-dev      - Restart dev services"
-	@echo "  make restart-prod     - Restart prod services"
+	@echo "Targets:"
+	@echo "  setup         - First time: create .venv and install Ansible"
+	@echo "  bootstrap     - Initial system setup (Docker, Node.js, certbot)"
+	@echo "  deploy        - Full deployment (clone, build, SSL, start)"
+	@echo "  update        - Update deployment (pull, rebuild, restart)"
+	@echo "  update-staging- Update only staging env (multi-env hosts)"
+	@echo "  update-beta   - Update only beta env (multi-env hosts)"
+	@echo "  status        - Check service status"
+	@echo "  restart       - Restart services"
+	@echo "  cert-renew    - Force SSL certificate renewal"
+	@echo "  logs          - View container logs"
+	@echo "  shell         - Shell into backend container"
+	@echo "  vault-edit    - Edit encrypted vault file"
+	@echo "  check         - Syntax check all playbooks"
 	@echo ""
-	@echo "Local execution (on the VM itself):"
-	@echo "  make update-dev LOCAL=1"
+	@echo "First-time setup:"
+	@echo "  sudo dnf install -y git python3 make"
+	@echo "  git clone https://github.com/galaxyproject/brc-analytics-playbook.git"
+	@echo "  cd brc-analytics-playbook"
+	@echo "  make setup"
+	@echo "  make bootstrap"
+	@echo "  make deploy"
 	@echo ""
-	@echo "Setup & utilities:"
-	@echo "  make setup            - Create .venv and install Ansible"
-	@echo "  make vault-edit       - Edit encrypted vault file"
-	@echo "  make check            - Syntax check all playbooks"
-	@echo "  make logs             - View container logs (on VM)"
-	@echo "  make shell            - Shell into backend (on VM)"
+	@echo "Subsequent updates:"
+	@echo "  make update"
+	@echo ""
+	@echo "Branch deployment:"
+	@echo "  Dev VM deploys 'main' branch"
+	@echo "  Prod VM deploys 'production' branch"

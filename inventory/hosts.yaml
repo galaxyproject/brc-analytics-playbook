@@ -1,7 +1,6 @@
 # BRC Analytics Inventory
 #
-# Default: remote execution over SSH from a workstation (on VPN).
-# For local execution on the VM itself, pass LOCAL=1 to make targets.
+# Run playbooks locally on the target VM after SSH login.
 
 all:
   vars:

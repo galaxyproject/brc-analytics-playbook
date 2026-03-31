@@ -8,9 +8,8 @@ Use the `Makefile` as the entry point for routine work:
 
 - `make setup` creates `.venv`, installs Python dependencies, and installs Ansible collections.
 - `make check` runs `ansible-playbook --syntax-check` against the main playbooks.
-- `make deploy-dev`, `make deploy-prod`, `make update-dev`, `make update-prod` run the corresponding operational playbooks.
-- `make status-dev` or `make restart-prod` handle inspection and service restarts.
-- `make update-dev LOCAL=1` is the pattern for running locally on the VM with `ansible_connection=local`.
+- `make deploy`, `make update`, `make status`, and `make restart` target the current VM via `hostname --fqdn`.
+- `make update-staging` and `make update-beta` filter multi-environment Jetstream updates when run on that host.
 
 ## Coding Style & Naming Conventions
 Write YAML with two-space indentation and descriptive task names in sentence case, matching existing playbooks. Name new playbooks `playbook-<action>.yaml`; place reusable sequences in `tasks/<action>.yaml`. Keep variables in `snake_case` (for example `brc_repo_branch`, `health_check_url`) and prefer shared defaults in `group_vars/all/vars.yaml` with environment overrides in `group_vars/development/` or `group_vars/production/`.
