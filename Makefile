@@ -59,13 +59,13 @@ deploy:
 # --- Update (pull, rebuild, restart) ---
 
 update:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS)
 
 update-staging:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging $(EXTRA_ARGS)
 
 update-beta:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS)
 
 # --- Status ---
 
@@ -75,7 +75,7 @@ status:
 # --- Restart ---
 
 restart:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS)
 
 # --- SSL ---
 
