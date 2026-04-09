@@ -123,7 +123,7 @@
 
     - name: Rebuild Docker images (if backend changed)
       ansible.builtin.command:
-        cmd: docker compose build
+        cmd: docker compose build backend
         chdir: "{{ brc_backend_dir }}"
       environment:
         APP_VERSION: "{{ lookup('file', brc_deploy_dir + '/package.json') | from_json | json_query('version') }}"
