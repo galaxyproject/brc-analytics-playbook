@@ -17,37 +17,47 @@
     force: true
   register: git_pull
 
+- name: "Read last update commit marker ({{ env.name }})"
+  ansible.builtin.slurp:
+    src: "{{ env_deploy_dir }}/.last-update-commit"
+  register: last_update_raw
+  failed_when: false
+
+- name: "Set last update commit ({{ env.name }})"
+  ansible.builtin.set_fact:
+    last_update_commit: "{{ (last_update_raw.content | default('') | b64decode | trim) or '4b825dc642cb6eb9a060e54bf899d15363da7b23' }}"
+
 # npm/catalog steps can be skipped for backend_only deployments because
 # the catalog output files are committed to the repo and pulled with git
 - name: "Check for catalog source changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only HEAD@{1} HEAD -- catalog/source/
+    cmd: git diff --name-only {{ last_update_commit }} HEAD -- catalog/source/
     chdir: "{{ env_deploy_dir }}"
   register: catalog_changes
   changed_when: false
   failed_when: false
-  when: git_pull.changed and not (backend_only | default(false))
+  when: not (backend_only | default(false))
 
 - name: "Rebuild catalog data ({{ env.name }})"
   ansible.builtin.command:
     cmd: npm run build-brc-db
     chdir: "{{ env_deploy_dir }}"
-  when: git_pull.changed and not (backend_only | default(false)) and catalog_changes.stdout | default('') | length > 0
+  when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
 - name: "Check for package-lock changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only HEAD@{1} HEAD -- package-lock.json
+    cmd: git diff --name-only {{ last_update_commit }} HEAD -- package-lock.json
     chdir: "{{ env_deploy_dir }}"
   register: npm_changes
   changed_when: false
   failed_when: false
-  when: git_pull.changed and not (backend_only | default(false))
+  when: not (backend_only | default(false))
 
 - name: "Update npm dependencies ({{ env.name }})"
   ansible.builtin.command:
     cmd: npm ci
     chdir: "{{ env_deploy_dir }}"
-  when: git_pull.changed and not (backend_only | default(false)) and npm_changes.stdout | default('') | length > 0
+  when: not (backend_only | default(false)) and (npm_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
 - name: "Template backend environment file ({{ env.name }})"
   ansible.builtin.template:
@@ -87,3 +97,9 @@
   retries: 30
   delay: 5
   when: docker_restart.changed | default(false)
+
+- name: "Record successful update commit ({{ env.name }})"
+  ansible.builtin.copy:
+    content: "{{ git_pull.after }}\n"
+    dest: "{{ env_deploy_dir }}/.last-update-commit"
+    mode: "0644"

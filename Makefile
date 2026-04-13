@@ -26,7 +26,7 @@ define with-sudo
 	@bash -c '(while sudo -v; do sleep 55; done) & PID=$$!; trap "kill $$PID 2>/dev/null" EXIT; $(1)'
 endef
 
-.PHONY: setup bootstrap deploy update update-staging update-beta status restart
+.PHONY: setup bootstrap deploy update update-staging update-beta rebuild status restart
 .PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help
 
 # --- Setup ---
@@ -66,6 +66,9 @@ update-staging:
 
 update-beta:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS)
+
+rebuild:
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e force_rebuild=true $(EXTRA_ARGS)
 
 # --- Status ---
 
@@ -133,9 +136,10 @@ help:
 	@echo "  setup         - First time: create .venv and install Ansible"
 	@echo "  bootstrap     - Initial system setup (Docker, Node.js, certbot)"
 	@echo "  deploy        - Full deployment (clone, build, SSL, start)"
-	@echo "  update        - Update deployment (pull, rebuild, restart)"
+	@echo "  update        - Update deployment (pull, rebuild if needed, restart)"
 	@echo "  update-staging- Update only staging env (multi-env hosts)"
 	@echo "  update-beta   - Update only beta env (multi-env hosts)"
+	@echo "  rebuild       - Force full rebuild and restart"
 	@echo "  status        - Check service status"
 	@echo "  restart       - Restart services"
 	@echo "  cert-renew    - Force SSL certificate renewal"
