@@ -17,15 +17,29 @@
     force: true
   register: git_pull
 
+- name: "Check for last update commit marker ({{ env.name }})"
+  ansible.builtin.stat:
+    path: "{{ env_deploy_dir }}/.last-update-commit"
+  register: last_update_marker
+
 - name: "Read last update commit marker ({{ env.name }})"
-  ansible.builtin.slurp:
-    src: "{{ env_deploy_dir }}/.last-update-commit"
+  ansible.builtin.command:
+    cmd: cat .last-update-commit
+    chdir: "{{ env_deploy_dir }}"
   register: last_update_raw
-  failed_when: false
+  changed_when: false
+  when: last_update_marker.stat.exists
 
 - name: "Set last update commit ({{ env.name }})"
   ansible.builtin.set_fact:
-    last_update_commit: "{{ (last_update_raw.content | default('') | b64decode | trim) or '4b825dc642cb6eb9a060e54bf899d15363da7b23' }}"
+    last_update_commit: "{{ last_update_raw.stdout | trim if last_update_marker.stat.exists else '4b825dc642cb6eb9a060e54bf899d15363da7b23' }}"
+
+- name: "Validate last update commit is set ({{ env.name }})"
+  ansible.builtin.assert:
+    that:
+      - last_update_commit is defined
+      - last_update_commit | length >= 7
+    fail_msg: "last_update_commit is empty or too short; change detection would silently skip rebuilds"
 
 # npm/catalog steps can be skipped for backend_only deployments because
 # the catalog output files are committed to the repo and pulled with git

@@ -24,16 +24,34 @@
     # Read the marker from the last successful update to know what to diff against.
     # If missing (first deploy, or marker cleared), default to the git empty tree hash
     # so all paths show as changed and everything rebuilds.
-    - name: Read last update commit marker
-      ansible.builtin.slurp:
-        src: "{{ brc_deploy_dir }}/.last-update-commit"
-      register: last_update_raw
-      failed_when: false
+    - name: Check for last update commit marker
+      ansible.builtin.stat:
+        path: "{{ brc_deploy_dir }}/.last-update-commit"
+      register: last_update_marker
       when: brc_environments is not defined
+
+    - name: Read last update commit marker
+      ansible.builtin.command:
+        cmd: cat .last-update-commit
+        chdir: "{{ brc_deploy_dir }}"
+      register: last_update_raw
+      changed_when: false
+      when: brc_environments is not defined and last_update_marker.stat.exists
 
     - name: Set last update commit
       ansible.builtin.set_fact:
-        last_update_commit: "{{ (last_update_raw.content | default('') | b64decode | trim) or '4b825dc642cb6eb9a060e54bf899d15363da7b23' }}"
+        last_update_commit: "{{ last_update_raw.stdout | trim if last_update_marker.stat.exists else '4b825dc642cb6eb9a060e54bf899d15363da7b23' }}"
+      when: brc_environments is not defined
+
+    # Fail loudly if the marker resolution produced something unusable --
+    # an empty value here silently collapses downstream git diff commands
+    # and skips rebuilds without any error
+    - name: Validate last update commit is set
+      ansible.builtin.assert:
+        that:
+          - last_update_commit is defined
+          - last_update_commit | length >= 7
+        fail_msg: "last_update_commit is empty or too short; change detection would silently skip rebuilds"
       when: brc_environments is not defined
 
     # Check if catalog source changed
