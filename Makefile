@@ -26,7 +26,7 @@ define with-sudo
 	@bash -c '(while sudo -v; do sleep 55; done) & PID=$$!; trap "kill $$PID 2>/dev/null" EXIT; $(1)'
 endef
 
-.PHONY: setup bootstrap deploy update update-staging update-beta rebuild status restart
+.PHONY: setup bootstrap deploy update update-staging update-beta rebuild auto-update status restart
 .PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help
 
 # --- Setup ---
@@ -69,6 +69,9 @@ update-beta:
 
 rebuild:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e force_rebuild=true $(EXTRA_ARGS)
+
+auto-update:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-auto-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
 # --- Status ---
 
@@ -126,6 +129,7 @@ check:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --syntax-check
 	$(ANSIBLE_PLAYBOOK) playbook-status.yaml --syntax-check
 	$(ANSIBLE_PLAYBOOK) playbook-restart.yaml --syntax-check
+	$(ANSIBLE_PLAYBOOK) playbook-auto-update.yaml --syntax-check
 
 # --- Help ---
 
@@ -140,6 +144,7 @@ help:
 	@echo "  update-staging- Update only staging env (multi-env hosts)"
 	@echo "  update-beta   - Update only beta env (multi-env hosts)"
 	@echo "  rebuild       - Force full rebuild and restart"
+	@echo "  auto-update   - Install/refresh auto-update systemd timer"
 	@echo "  status        - Check service status"
 	@echo "  restart       - Restart services"
 	@echo "  cert-renew    - Force SSL certificate renewal"

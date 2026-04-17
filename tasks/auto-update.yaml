@@ -1,0 +1,97 @@
+# Auto-update: systemd timer that runs brc-auto-update.sh on a schedule.
+# The script checks origin for new commits and runs the update playbook
+# only when there are changes. Gated by brc_auto_update (per-env) and
+# scoped to single-env hosts only.
+---
+- name: Create auto-update log directory
+  ansible.builtin.file:
+    path: /var/log/brc-analytics
+    state: directory
+    owner: "{{ brc_user }}"
+    group: "{{ brc_group }}"
+    mode: "0755"
+  become: true
+  when: brc_auto_update | default(false) and brc_environments is not defined
+
+- name: Create auto-update script
+  ansible.builtin.copy:
+    dest: /usr/local/bin/brc-auto-update.sh
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      LOG_DIR=/var/log/brc-analytics
+      mkdir -p "$LOG_DIR"
+      LOG="$LOG_DIR/auto-update.log"
+
+      exec > >(tee -a "$LOG") 2>&1
+
+      echo ""
+      echo "========== $(date) =========="
+      cd {{ brc_playbook_dir }}
+      git fetch origin
+      if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/{{ brc_repo_branch }})" ]; then
+        echo "Changes detected, running update"
+        echo "Local:  $(git rev-parse --short HEAD)"
+        echo "Remote: $(git rev-parse --short origin/{{ brc_repo_branch }})"
+        git pull
+        {{ brc_playbook_dir }}/.venv/bin/ansible-playbook -i inventory/hosts.yaml playbook-update.yaml --limit=$(hostname --fqdn) -e ansible_connection=local
+        echo "Update finished with exit code $?"
+      else
+        echo "No changes"
+      fi
+    mode: "0755"
+  become: true
+  when: brc_auto_update | default(false) and brc_environments is not defined
+
+- name: Create auto-update systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/brc-auto-update.service
+    content: |
+      [Unit]
+      Description=BRC Analytics auto-update
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/brc-auto-update.sh
+      User={{ brc_user }}
+      WorkingDirectory={{ brc_playbook_dir }}
+    mode: "0644"
+  become: true
+  when: brc_auto_update | default(false) and brc_environments is not defined
+
+- name: Create auto-update systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/brc-auto-update.timer
+    content: |
+      [Unit]
+      Description=Run BRC Analytics auto-update ({{ brc_auto_update_schedule }})
+
+      [Timer]
+      OnCalendar={{ brc_auto_update_schedule }}
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+    mode: "0644"
+  become: true
+  when: brc_auto_update | default(false) and brc_environments is not defined
+
+- name: Enable auto-update timer
+  ansible.builtin.systemd:
+    name: brc-auto-update.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: brc_auto_update | default(false) and brc_environments is not defined
+
+- name: Disable auto-update timer
+  ansible.builtin.systemd:
+    name: brc-auto-update.timer
+    enabled: false
+    state: stopped
+    daemon_reload: true
+  become: true
+  failed_when: false
+  when: not (brc_auto_update | default(false)) and brc_environments is not defined

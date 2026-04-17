@@ -45,6 +45,7 @@ redis_maxmemory_policy: allkeys-lru
 
 # Auto-update (disabled by default, enabled for dev)
 brc_auto_update: false
+brc_auto_update_schedule: hourly
 brc_playbook_dir: /home/brc-admin/brc-analytics-playbook
 
 # Backend API settings (non-sensitive)

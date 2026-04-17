@@ -9,8 +9,9 @@ brc_repo_branch: main
 # Use dev build script for frontend builds
 brc_build_script: "build:dev"
 
-# Nightly auto-update from main
+# Auto-update from main every 3 hours (00:00, 03:00, 06:00, ...)
 brc_auto_update: true
+brc_auto_update_schedule: "*-*-* 00/3:00:00"
 
 # API settings - more verbose logging in dev
 api_log_level: DEBUG

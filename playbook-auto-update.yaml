@@ -1,0 +1,11 @@
+# Auto-update Playbook - Install or refresh the auto-update timer
+# Thin wrapper so schedule changes don't require a full deploy
+#
+# Usage: make auto-update
+---
+- name: Configure auto-update timer
+  hosts: all
+
+  tasks:
+    - name: Configure auto-update timer
+      ansible.builtin.include_tasks: tasks/auto-update.yaml
