@@ -26,7 +26,7 @@ define with-sudo
 	@bash -c '(while sudo -v; do sleep 55; done) & PID=$$!; trap "kill $$PID 2>/dev/null" EXIT; $(1)'
 endef
 
-.PHONY: setup bootstrap deploy update update-staging update-beta rebuild auto-update status restart
+.PHONY: setup bootstrap deploy deploy-ga2 update update-staging update-beta update-ga2 rebuild auto-update status restart
 .PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help
 
 # --- Setup ---
@@ -56,6 +56,9 @@ bootstrap:
 deploy:
 	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
+deploy-ga2:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=ga2 $(EXTRA_ARGS))
+
 # --- Update (pull, rebuild, restart) ---
 
 update:
@@ -66,6 +69,9 @@ update-staging:
 
 update-beta:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS)
+
+update-ga2:
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2 $(EXTRA_ARGS)
 
 rebuild:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e force_rebuild=true $(EXTRA_ARGS)
@@ -143,6 +149,8 @@ help:
 	@echo "  update        - Update deployment (pull, rebuild if needed, restart)"
 	@echo "  update-staging- Update only staging env (multi-env hosts)"
 	@echo "  update-beta   - Update only beta env (multi-env hosts)"
+	@echo "  update-ga2    - Update only ga2 env (multi-env hosts)"
+	@echo "  deploy-ga2    - First-time deploy of ga2 env only (multi-env hosts)"
 	@echo "  rebuild       - Force full rebuild and restart"
 	@echo "  auto-update   - Install/refresh auto-update systemd timer"
 	@echo "  status        - Check service status"

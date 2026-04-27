@@ -49,3 +49,12 @@ all:
               domain: platform-beta.brc-analytics.org
               branch: production
               backend_port: 8001
+            - name: ga2
+              domain: ga2.brc-analytics.org
+              branch: main
+              backend_port: 8002
+              # Skip cert acquisition for first-run demo; flip off after
+              # installing the cert manually under /etc/letsencrypt/live/<domain>/
+              ssl_skip: true
+              # If ga2 lives in a different repo, set:
+              # repo_url: https://github.com/galaxyproject/ga2-analytics.git
