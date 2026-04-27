@@ -55,6 +55,7 @@
     path: "/etc/letsencrypt/live/{{ env.domain }}/fullchain.pem"
   become: true
   register: ssl_cert_stat
+  when: not (env.ssl_skip | default(false))
 
 - name: "Obtain SSL certificate via certbot ({{ env.name }})"
   ansible.builtin.command:
@@ -65,7 +66,7 @@
       --email {{ ssl_cert_email }}
       --domain {{ env.domain }}
   become: true
-  when: not ssl_cert_stat.stat.exists
+  when: not (env.ssl_skip | default(false)) and not ssl_cert_stat.stat.exists
   register: certbot_result
 
 - name: "Stop any running containers ({{ env.name }})"
