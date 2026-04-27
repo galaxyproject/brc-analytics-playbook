@@ -252,7 +252,7 @@
       loop: "{{ brc_environments }}"
       loop_control:
         loop_var: env
-      when: brc_environments is defined
+      when: brc_environments is defined and (env_filter is not defined or env.name == env_filter)
 
     - name: Template multi-environment nginx configuration
       ansible.builtin.template:
