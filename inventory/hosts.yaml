@@ -10,25 +10,42 @@ all:
     production:
       hosts:
         brc-analytics-prod.tacc.utexas.edu:
-          brc_environment: production
-          brc_domain: brc-analytics.org
-          brc_domain_aliases:
-            - prod.brc-analytics.org
-            - www.brc-analytics.org
-          ssl_mode: letsencrypt
           ssl_cert_email: dannon.baker@gmail.com
-          ssl_cert_path: /etc/letsencrypt/live/prod.brc-analytics.org/fullchain.pem
-          ssl_key_path: /etc/letsencrypt/live/prod.brc-analytics.org/privkey.pem
+          brc_environments:
+            - name: brc-prod
+              domain: brc-analytics.org
+              # Existing letsencrypt cert is filed under prod.brc-analytics.org
+              cert_domain: prod.brc-analytics.org
+              domain_aliases:
+                - prod.brc-analytics.org
+                - www.brc-analytics.org
+              branch: production
+              backend_port: 8000
+              context: brc
+            - name: ga2-prod
+              domain: ga2.brc-analytics.org   # confirm before deploy
+              branch: production
+              backend_port: 8001
+              context: ga2
+              # Skip cert acquisition; install cert manually then flip off
+              ssl_skip: true
 
     development:
       hosts:
         brc-analytics-dev.tacc.utexas.edu:
-          brc_environment: development
-          brc_domain: dev.brc-analytics.org
-          ssl_mode: letsencrypt
           ssl_cert_email: dannon.baker@gmail.com
-          ssl_cert_path: /etc/letsencrypt/live/dev.brc-analytics.org/fullchain.pem
-          ssl_key_path: /etc/letsencrypt/live/dev.brc-analytics.org/privkey.pem
+          brc_environments:
+            - name: brc-dev
+              domain: dev.brc-analytics.org
+              branch: main
+              backend_port: 8000
+              context: brc
+            - name: ga2-dev
+              domain: ga2-dev.brc-analytics.org   # confirm before deploy
+              branch: main
+              backend_port: 8001
+              context: ga2
+              ssl_skip: true
 
     # Jetstream hosts run multiple environments on a single VM
     # using host-level nginx for SSL/routing
