@@ -5,13 +5,15 @@
   ansible.builtin.set_fact:
     env_deploy_dir: "/opt/brc-analytics-{{ env.name }}"
     env_backend_dir: "/opt/brc-analytics-{{ env.name }}/backend"
+    env_repo_url: "{{ env.repo_url | default(brc_repo_url) }}"
     brc_domain: "{{ env.domain }}"
     brc_environment: "{{ env.name }}"
     brc_repo_branch: "{{ env.branch }}"
+    brc_context: "{{ env.context | default('brc') }}"
 
 - name: "Pull latest changes ({{ env.name }})"
   ansible.builtin.git:
-    repo: "{{ brc_repo_url }}"
+    repo: "{{ env_repo_url }}"
     dest: "{{ env_deploy_dir }}"
     version: "{{ env.branch }}"
     force: true
@@ -58,6 +60,15 @@
     chdir: "{{ env_deploy_dir }}"
   when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
+- name: "Check for frontend source changes ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: git diff --name-only {{ last_update_commit }} HEAD -- app/ components/ pages/ public/ next.config.js next.config.mjs package.json
+    chdir: "{{ env_deploy_dir }}"
+  register: frontend_changes
+  changed_when: false
+  failed_when: false
+  when: not (backend_only | default(false))
+
 - name: "Check for package-lock changes ({{ env.name }})"
   ansible.builtin.command:
     cmd: git diff --name-only {{ last_update_commit }} HEAD -- package-lock.json
@@ -72,6 +83,12 @@
     cmd: npm ci
     chdir: "{{ env_deploy_dir }}"
   when: not (backend_only | default(false)) and (npm_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
+
+- name: "Rebuild Next.js static export ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: npm run {{ env.build_script | default(brc_build_script) }} -- --no-lint
+    chdir: "{{ env_deploy_dir }}"
+  when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or frontend_changes.stdout | default('') | length > 0 or npm_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
 - name: "Template backend environment file ({{ env.name }})"
   ansible.builtin.template:
