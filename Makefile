@@ -71,29 +71,29 @@ deploy-ga2-dev:
 # --- Update (pull, rebuild, restart) ---
 
 update:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
 update-brc-prod:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod $(EXTRA_ARGS))
 
 update-ga2-prod:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-prod $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-prod $(EXTRA_ARGS))
 
 update-brc-dev:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev $(EXTRA_ARGS))
 
 update-ga2-dev:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS))
 
 # Jetstream env names (kept until jetstream is decommissioned)
 update-staging:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging $(EXTRA_ARGS))
 
 update-beta:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS))
 
 rebuild:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e force_rebuild=true $(EXTRA_ARGS)
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e force_rebuild=true $(EXTRA_ARGS))
 
 auto-update:
 	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-auto-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))

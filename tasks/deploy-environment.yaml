@@ -22,6 +22,8 @@
     dest: "{{ env_deploy_dir }}"
     version: "{{ env.branch }}"
     force: true
+  become: true
+  become_user: "{{ brc_user }}"
 
 # npm/catalog steps can be skipped for backend_only deployments because
 # the catalog output files are committed to the repo and pulled with git
@@ -32,6 +34,8 @@
   register: npm_install
   changed_when: "'added' in npm_install.stdout"
   when: not (backend_only | default(false))
+  become: true
+  become_user: "{{ brc_user }}"
 
 - name: "Build catalog data ({{ env.name }})"
   ansible.builtin.command:
@@ -39,6 +43,8 @@
     chdir: "{{ env_deploy_dir }}"
   changed_when: true
   when: not (backend_only | default(false))
+  become: true
+  become_user: "{{ brc_user }}"
 
 - name: "Build Next.js static export ({{ env.name }})"
   ansible.builtin.command:
@@ -46,18 +52,24 @@
     chdir: "{{ env_deploy_dir }}"
   changed_when: true
   when: not (backend_only | default(false))
+  become: true
+  become_user: "{{ brc_user }}"
 
 - name: "Template backend environment file ({{ env.name }})"
   ansible.builtin.template:
     src: templates/api.env.j2
     dest: "{{ env_backend_dir }}/api/.env"
     mode: "0600"
+  become: true
+  become_user: "{{ brc_user }}"
 
 - name: "Template docker-compose override ({{ env.name }})"
   ansible.builtin.template:
     src: templates/docker-compose.backend-only.yml.j2
     dest: "{{ env_backend_dir }}/docker-compose.override.yml"
     mode: "0644"
+  become: true
+  become_user: "{{ brc_user }}"
 
 - name: "Check if SSL certificate exists ({{ env.name }})"
   ansible.builtin.stat:
@@ -84,6 +96,8 @@
     chdir: "{{ env_backend_dir }}"
   failed_when: false
   changed_when: false
+  become: true
+  become_user: "{{ brc_user }}"
 
 - name: "Build backend image ({{ env.name }})"
   ansible.builtin.command:
@@ -91,12 +105,16 @@
     chdir: "{{ env_backend_dir }}"
   environment:
     APP_VERSION: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
+  become: true
+  become_user: "{{ brc_user }}"
 
 - name: "Start Docker services ({{ env.name }})"
   ansible.builtin.command:
     cmd: docker compose -p brc-analytics-{{ env.name }} up -d
     chdir: "{{ env_backend_dir }}"
   register: docker_up
+  become: true
+  become_user: "{{ brc_user }}"
 
 - name: "Wait for backend to be healthy ({{ env.name }})"
   ansible.builtin.uri:
