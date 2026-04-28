@@ -10,13 +10,15 @@
   ansible.builtin.set_fact:
     env_deploy_dir: "/opt/brc-analytics-{{ env.name }}"
     env_backend_dir: "/opt/brc-analytics-{{ env.name }}/backend"
+    env_repo_url: "{{ env.repo_url | default(brc_repo_url) }}"
     brc_domain: "{{ env.domain }}"
     brc_environment: "{{ env.name }}"
     brc_repo_branch: "{{ env.branch }}"
+    brc_context: "{{ env.context | default('brc') }}"
 
 - name: "Clone or update repository ({{ env.name }})"
   ansible.builtin.git:
-    repo: "{{ brc_repo_url }}"
+    repo: "{{ env_repo_url }}"
     dest: "{{ env_deploy_dir }}"
     version: "{{ env.branch }}"
     force: true
@@ -34,6 +36,13 @@
 - name: "Build catalog data ({{ env.name }})"
   ansible.builtin.command:
     cmd: npm run build-brc-db
+    chdir: "{{ env_deploy_dir }}"
+  changed_when: true
+  when: not (backend_only | default(false))
+
+- name: "Build Next.js static export ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: npm run {{ env.build_script | default(brc_build_script) }} -- --no-lint
     chdir: "{{ env_deploy_dir }}"
   changed_when: true
   when: not (backend_only | default(false))
