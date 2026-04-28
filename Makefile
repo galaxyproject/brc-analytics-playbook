@@ -26,7 +26,7 @@ define with-sudo
 	@bash -c '(while sudo -v; do sleep 55; done) & PID=$$!; trap "kill $$PID 2>/dev/null" EXIT; $(1)'
 endef
 
-.PHONY: setup bootstrap deploy update update-staging update-beta rebuild auto-update status restart
+.PHONY: setup bootstrap deploy deploy-brc-prod deploy-ga2-prod deploy-brc-dev deploy-ga2-dev update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev update-staging update-beta rebuild auto-update status restart
 .PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help
 
 # --- Setup ---
@@ -56,11 +56,36 @@ bootstrap:
 deploy:
 	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
+deploy-brc-prod:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod $(EXTRA_ARGS))
+
+deploy-ga2-prod:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=ga2-prod $(EXTRA_ARGS))
+
+deploy-brc-dev:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev $(EXTRA_ARGS))
+
+deploy-ga2-dev:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS))
+
 # --- Update (pull, rebuild, restart) ---
 
 update:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS)
 
+update-brc-prod:
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod $(EXTRA_ARGS)
+
+update-ga2-prod:
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-prod $(EXTRA_ARGS)
+
+update-brc-dev:
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev $(EXTRA_ARGS)
+
+update-ga2-dev:
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS)
+
+# Jetstream env names (kept until jetstream is decommissioned)
 update-staging:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging $(EXTRA_ARGS)
 
@@ -141,8 +166,13 @@ help:
 	@echo "  bootstrap     - Initial system setup (Docker, Node.js, certbot)"
 	@echo "  deploy        - Full deployment (clone, build, SSL, start)"
 	@echo "  update        - Update deployment (pull, rebuild if needed, restart)"
-	@echo "  update-staging- Update only staging env (multi-env hosts)"
-	@echo "  update-beta   - Update only beta env (multi-env hosts)"
+	@echo "  update-brc-prod    - Update brc env on prod TACC host"
+	@echo "  update-ga2-prod    - Update ga2 env on prod TACC host"
+	@echo "  update-brc-dev     - Update brc env on dev TACC host"
+	@echo "  update-ga2-dev     - Update ga2 env on dev TACC host"
+	@echo "  deploy-{brc,ga2}-{prod,dev} - First-time deploy of one env"
+	@echo "  update-staging     - Update only staging env (jetstream)"
+	@echo "  update-beta        - Update only beta env (jetstream)"
 	@echo "  rebuild       - Force full rebuild and restart"
 	@echo "  auto-update   - Install/refresh auto-update systemd timer"
 	@echo "  status        - Check service status"
