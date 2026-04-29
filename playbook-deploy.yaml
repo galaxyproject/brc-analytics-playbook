@@ -254,56 +254,6 @@
         loop_var: env
       when: brc_environments is defined and (env_filter is not defined or env.name == env_filter)
 
-    - name: Template multi-environment nginx configuration
-      ansible.builtin.template:
-        src: templates/nginx-multi-env.conf.j2
-        dest: /etc/nginx/conf.d/brc-analytics.conf
-        mode: "0644"
-      become: true
-      when: brc_environments is defined
-      notify: Reload nginx
-
-    - name: Create certbot renewal service for multi-env
-      ansible.builtin.copy:
-        dest: /etc/systemd/system/certbot-renew.service
-        content: |
-          [Unit]
-          Description=Certbot renewal
-
-          [Service]
-          Type=oneshot
-          ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "systemctl reload nginx"
-        mode: "0644"
-      become: true
-      when: brc_environments is defined
-
-    - name: Create certbot renewal timer
-      ansible.builtin.copy:
-        dest: /etc/systemd/system/certbot-renew.timer
-        content: |
-          [Unit]
-          Description=Run certbot twice daily
-
-          [Timer]
-          OnCalendar=*-*-* 00,12:00:00
-          RandomizedDelaySec=43200
-          Persistent=true
-
-          [Install]
-          WantedBy=timers.target
-        mode: "0644"
-      become: true
-      when: brc_environments is defined
-
-    - name: Enable certbot renewal timer (multi-env)
-      ansible.builtin.systemd:
-        name: certbot-renew.timer
-        enabled: true
-        state: started
-        daemon_reload: true
-      become: true
-      when: brc_environments is defined
-
     - name: Display deployment completion message (multi-env)
       ansible.builtin.debug:
         msg: |

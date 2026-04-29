@@ -54,46 +54,46 @@ bootstrap:
 # --- Deploy (full, from scratch) ---
 
 deploy:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS)
 
 deploy-brc-prod:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod $(EXTRA_ARGS)
 
 deploy-ga2-prod:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=ga2-prod $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=ga2-prod $(EXTRA_ARGS)
 
 deploy-brc-dev:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev $(EXTRA_ARGS)
 
 deploy-ga2-dev:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS)
 
 # --- Update (pull, rebuild, restart) ---
 
 update:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS)
 
 update-brc-prod:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod $(EXTRA_ARGS)
 
 update-ga2-prod:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-prod $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-prod $(EXTRA_ARGS)
 
 update-brc-dev:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev $(EXTRA_ARGS)
 
 update-ga2-dev:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS)
 
 # Jetstream env names (kept until jetstream is decommissioned)
 update-staging:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging $(EXTRA_ARGS)
 
 update-beta:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS)
 
 rebuild:
-	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e force_rebuild=true $(EXTRA_ARGS))
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e force_rebuild=true $(EXTRA_ARGS)
 
 auto-update:
 	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-auto-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))

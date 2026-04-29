@@ -151,11 +151,98 @@
       when: brc_environments is defined and ansible_selinux.status == "enabled"
       changed_when: false
 
+    - name: Label per-env out/ dirs as nginx content (SELinux)
+      ansible.builtin.command:
+        cmd: chcon -R -t httpd_sys_content_t /opt/brc-analytics-{{ item.name }}
+      loop: "{{ brc_environments }}"
+      when: brc_environments is defined and ansible_selinux.status == "enabled"
+      changed_when: false
+      failed_when: false
+
+    # Per-env SSL cert acquisition (skipped if cert exists or ssl_skip is set).
+    # Done before brc-analytics nginx config is rendered so the rendered HTTPS
+    # vhosts have valid cert paths.
+    - name: Check if SSL certificate exists per env
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ item.cert_domain | default(item.domain) }}/fullchain.pem"
+      register: per_env_ssl_stat
+      loop: "{{ brc_environments }}"
+      when: brc_environments is defined and not (item.ssl_skip | default(false))
+
+    - name: Stop nginx briefly for standalone certbot
+      ansible.builtin.systemd:
+        name: nginx
+        state: stopped
+      when:
+        - brc_environments is defined
+        - per_env_ssl_stat.results | default([]) | selectattr('stat.exists', 'equalto', false) | list | length > 0
+
+    - name: Obtain SSL certificate via certbot (per env)
+      ansible.builtin.command:
+        cmd: >
+          certbot certonly --standalone
+          --non-interactive
+          --agree-tos
+          --email {{ ssl_cert_email }}
+          --domain {{ item.item.cert_domain | default(item.item.domain) }}
+      loop: "{{ per_env_ssl_stat.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.name | default('?') }}"
+      when:
+        - brc_environments is defined
+        - not (item.item.ssl_skip | default(false))
+        - not (item.stat.exists | default(false))
+
+    - name: Render multi-env nginx configuration
+      ansible.builtin.template:
+        src: templates/nginx-multi-env.conf.j2
+        dest: /etc/nginx/conf.d/brc-analytics.conf
+        mode: "0644"
+      when: brc_environments is defined
+
+    - name: Create certbot renewal service for multi-env
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/certbot-renew.service
+        content: |
+          [Unit]
+          Description=Certbot renewal
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/certbot renew --quiet --deploy-hook "systemctl reload nginx"
+        mode: "0644"
+      when: brc_environments is defined
+
+    - name: Create certbot renewal timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/certbot-renew.timer
+        content: |
+          [Unit]
+          Description=Run certbot twice daily
+
+          [Timer]
+          OnCalendar=*-*-* 00,12:00:00
+          RandomizedDelaySec=43200
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+        mode: "0644"
+      when: brc_environments is defined
+
+    - name: Enable certbot renewal timer
+      ansible.builtin.systemd:
+        name: certbot-renew.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: brc_environments is defined
+
     - name: Enable and start nginx (multi-environment hosts)
       ansible.builtin.systemd:
         name: nginx
         enabled: true
-        state: started
+        state: restarted
       when: brc_environments is defined
 
     # Firewall configuration (if firewalld is active)
