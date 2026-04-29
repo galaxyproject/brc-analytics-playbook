@@ -225,10 +225,6 @@
       become: true
       when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
-    # Auto-update (dev only)
-    - name: Configure auto-update timer
-      ansible.builtin.include_tasks: tasks/auto-update.yaml
-
     - name: Display deployment completion message (single-env)
       ansible.builtin.debug:
         msg: |
