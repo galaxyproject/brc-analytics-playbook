@@ -175,7 +175,7 @@
         state: stopped
       when:
         - brc_environments is defined
-        - per_env_ssl_stat.results | default([]) | selectattr('stat.exists', 'equalto', false) | list | length > 0
+        - per_env_ssl_stat.results | default([]) | selectattr('stat', 'defined') | rejectattr('stat.exists') | list | length > 0
 
     - name: Obtain SSL certificate via certbot (per env)
       ansible.builtin.command:
