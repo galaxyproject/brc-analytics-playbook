@@ -16,6 +16,15 @@
     brc_repo_branch: "{{ env.branch }}"
     brc_context: "{{ env.context | default('brc') }}"
 
+- name: "Ensure deploy dir exists and is owned by service user ({{ env.name }})"
+  ansible.builtin.file:
+    path: "{{ env_deploy_dir }}"
+    state: directory
+    owner: "{{ brc_user }}"
+    group: "{{ brc_group }}"
+    mode: "0755"
+  become: true
+
 - name: "Clone or update repository ({{ env.name }})"
   ansible.builtin.git:
     repo: "{{ env_repo_url }}"
