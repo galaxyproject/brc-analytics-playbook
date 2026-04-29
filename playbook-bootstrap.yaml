@@ -263,6 +263,10 @@
         - "443/tcp"
       when: firewalld_status.rc == 0
 
+    # Auto-update systemd timer (driven by brc_auto_update group var)
+    - name: Configure auto-update timer
+      ansible.builtin.include_tasks: tasks/auto-update.yaml
+
     - name: Display bootstrap completion message
       ansible.builtin.debug:
         msg: |
