@@ -23,10 +23,12 @@ all:
               backend_port: 8000
               context: brc
             - name: ga2-prod
-              domain: ga2.brc-analytics.org   # confirm before deploy
+              domain: genomeark2.org   # TODO: confirm -- apex currently aliases CloudFront
               branch: production
               backend_port: 8001
               context: ga2
+              build_script: "build-prod:ga2"
+              catalog_build_script: "build-ga2-db"
               # Skip cert acquisition; install cert manually then flip off
               ssl_skip: true
 
@@ -41,10 +43,12 @@ all:
               backend_port: 8000
               context: brc
             - name: ga2-dev
-              domain: ga2-dev.brc-analytics.org   # confirm before deploy
+              domain: dev.genomeark2.org
               branch: main
               backend_port: 8001
               context: ga2
+              build_script: "build-dev:ga2"
+              catalog_build_script: "build-ga2-db"
               ssl_skip: true
 
     # Jetstream hosts run multiple environments on a single VM

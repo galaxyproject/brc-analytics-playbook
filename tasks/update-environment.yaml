@@ -58,7 +58,7 @@
 
 - name: "Rebuild catalog data ({{ env.name }})"
   ansible.builtin.command:
-    cmd: npm run build-brc-db
+    cmd: npm run {{ env.catalog_build_script | default('build-brc-db') }}
     chdir: "{{ env_deploy_dir }}"
   when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 

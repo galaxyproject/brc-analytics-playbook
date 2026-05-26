@@ -40,7 +40,7 @@
 
 - name: "Build catalog data ({{ env.name }})"
   ansible.builtin.command:
-    cmd: npm run build-brc-db
+    cmd: npm run {{ env.catalog_build_script | default('build-brc-db') }}
     chdir: "{{ env_deploy_dir }}"
   changed_when: true
   when: not (backend_only | default(false))
