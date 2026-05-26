@@ -49,7 +49,6 @@ all:
               context: ga2
               build_script: "build-dev:ga2"
               catalog_build_script: "build-ga2-db"
-              ssl_skip: true
 
     # Jetstream hosts run multiple environments on a single VM
     # using host-level nginx for SSL/routing
