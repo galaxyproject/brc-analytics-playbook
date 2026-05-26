@@ -9,5 +9,8 @@ services:
     profiles:
       - disabled
   backend:
-    ports:
+    # !override fully replaces the ports list from the base compose file.
+    # Without this, Compose merges and the base's "8000:8000" (binding
+    # 0.0.0.0:8000) leaks through, causing cross-env port conflicts.
+    ports: !override
       - "127.0.0.1:{{ env.backend_port }}:8000"
