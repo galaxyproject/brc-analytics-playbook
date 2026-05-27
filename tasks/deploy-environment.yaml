@@ -26,6 +26,7 @@
     dest: "{{ env_deploy_dir }}"
     version: "{{ env.branch }}"
     force: true
+  register: git_clone
 
 # npm/catalog steps can be skipped for backend_only deployments because
 # the catalog output files are committed to the repo and pulled with git
@@ -91,3 +92,9 @@
   until: health_result.status == 200
   retries: 30
   delay: 5
+
+- name: "Record successful deploy commit ({{ env.name }})"
+  ansible.builtin.copy:
+    content: "{{ git_clone.after }}\n"
+    dest: "{{ env_deploy_dir }}/.last-update-commit"
+    mode: "0644"

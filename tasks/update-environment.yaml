@@ -63,7 +63,7 @@
 
 - name: "Check for frontend source changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only {{ last_update_commit }} HEAD -- app/ components/ pages/ public/ next.config.js next.config.mjs package.json
+    cmd: git diff --name-only {{ last_update_commit }} HEAD -- app/ components/ pages/ public/ site-config/ catalog/ next.config.js next.config.mjs package.json
     chdir: "{{ env_deploy_dir }}"
   register: frontend_changes
   changed_when: false
