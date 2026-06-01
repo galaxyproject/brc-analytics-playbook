@@ -54,6 +54,32 @@
         fail_msg: "last_update_commit is empty or too short; change detection would silently skip rebuilds"
       when: brc_environments is not defined
 
+    # Self-heal: if the running build's reported version doesn't match the
+    # checked-out target, the marker has drifted ahead of what's actually
+    # deployed -- a stale marker silently wedges change-detection into no-op
+    # updates. Reset the diff baseline to the empty tree so every path rebuilds.
+    - name: Get currently-running backend version
+      ansible.builtin.uri:
+        url: "{{ health_check_url | replace('/health', '/version') }}"
+        validate_certs: false
+      register: running_version_result
+      changed_when: false
+      failed_when: false
+      when: brc_environments is not defined
+
+    - name: Resolve running and target app versions
+      ansible.builtin.set_fact:
+        running_app_version: "{{ running_version_result.json.version | default('') }}"
+        target_app_version: "{{ lookup('file', brc_deploy_dir + '/package.json') | from_json | json_query('version') }}"
+      when: brc_environments is not defined
+
+    - name: Force full rebuild baseline when deployed version drifted from target
+      ansible.builtin.set_fact:
+        last_update_commit: "4b825dc642cb6eb9a060e54bf899d15363da7b23"
+      when:
+        - brc_environments is not defined
+        - running_app_version != target_app_version
+
     # Check if catalog source changed
     - name: Check for catalog source changes
       ansible.builtin.command:

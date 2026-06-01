@@ -44,6 +44,30 @@
       - last_update_commit | length >= 7
     fail_msg: "last_update_commit is empty or too short; change detection would silently skip rebuilds"
 
+# Self-heal: a stale marker silently wedges change-detection into no-op updates.
+# If the running build's reported version doesn't match the checked-out target,
+# reset the diff baseline to the empty tree so every path rebuilds.
+- name: "Get currently-running backend version ({{ env.name }})"
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ env.backend_port }}/api/v1/version"
+  register: running_version_result
+  changed_when: false
+  failed_when: false
+  when: not (backend_only | default(false))
+
+- name: "Resolve running and target app versions ({{ env.name }})"
+  ansible.builtin.set_fact:
+    running_app_version: "{{ running_version_result.json.version | default('') }}"
+    target_app_version: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
+  when: not (backend_only | default(false))
+
+- name: "Force full rebuild baseline when deployed version drifted ({{ env.name }})"
+  ansible.builtin.set_fact:
+    last_update_commit: "4b825dc642cb6eb9a060e54bf899d15363da7b23"
+  when:
+    - not (backend_only | default(false))
+    - running_app_version != target_app_version
+
 # npm/catalog steps can be skipped for backend_only deployments because
 # the catalog output files are committed to the repo and pulled with git
 - name: "Check for catalog source changes ({{ env.name }})"
