@@ -191,7 +191,10 @@
 
     # Restart services
     # Use --force-recreate when frontend was rebuilt, because the Next.js build
-    # replaces the out/ directory (new inode) and Docker's bind mount goes stale
+    # replaces the out/ directory (new inode) and Docker's bind mount goes stale.
+    # The backend can cold-start slower than the frontend's depends_on healthcheck
+    # wait, making compose exit non-zero even though the stack converges fine -- so
+    # we tolerate that here and let the health check below be the authoritative gate.
     - name: Restart services
       ansible.builtin.command:
         cmd: docker compose up -d --remove-orphans {{ '--force-recreate' if frontend_rebuild.changed | default(false) else '' }}
@@ -205,8 +208,23 @@
              or nginx_template.changed
              or force_rebuild | default(false))
       register: docker_restart
+      failed_when: false
 
-    # Wait for health check
+    # If the recreate bailed on the slow-healthcheck race the frontend may not have
+    # started; a plain up -d converges the stack now that the backend has had time
+    # to come up healthy.
+    - name: Re-converge services if the recreate bailed
+      ansible.builtin.command:
+        cmd: docker compose up -d --remove-orphans
+        chdir: "{{ brc_backend_dir }}"
+      when:
+        - brc_environments is not defined
+        - docker_restart is changed
+        - docker_restart.rc | default(0) != 0
+      failed_when: false
+
+    # Wait for health check -- authoritative success gate now that the restart
+    # steps tolerate the transient dependency-wait failure.
     - name: Wait for services to be healthy
       ansible.builtin.uri:
         url: "{{ health_check_url }}"
