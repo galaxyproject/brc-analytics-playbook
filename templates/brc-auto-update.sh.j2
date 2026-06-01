@@ -1,0 +1,45 @@
+#!/bin/bash
+# Managed by Ansible
+#
+# Auto-update: trigger a playbook update run ONLY when one of this host's app
+# repos (the BRC source checked out at /opt/brc-analytics-<env>) has new commits
+# on its tracked branch. The playbook repo itself is intentionally never fetched
+# or pulled here -- playbook changes are applied manually.
+set -euo pipefail
+
+LOG_DIR=/var/log/brc-analytics
+mkdir -p "$LOG_DIR"
+LOG="$LOG_DIR/auto-update.log"
+
+exec > >(tee -a "$LOG") 2>&1
+
+echo ""
+echo "========== $(date) =========="
+
+changed=false
+{% for env in brc_environments %}
+DIR="/opt/brc-analytics-{{ env.name }}"
+if [ -d "$DIR/.git" ]; then
+  git -C "$DIR" fetch --quiet origin {{ env.branch }}
+  LOCAL=$(git -C "$DIR" rev-parse HEAD)
+  REMOTE=$(git -C "$DIR" rev-parse origin/{{ env.branch }})
+  if [ "$LOCAL" != "$REMOTE" ]; then
+    echo "{{ env.name }} ({{ env.branch }}): changes ${LOCAL:0:7} -> ${REMOTE:0:7}"
+    changed=true
+  else
+    echo "{{ env.name }} ({{ env.branch }}): no changes"
+  fi
+else
+  echo "{{ env.name }}: $DIR not deployed yet, skipping"
+fi
+{% endfor %}
+
+if [ "$changed" = true ]; then
+  echo "App changes detected, running update"
+  cd {{ brc_playbook_dir }}
+  .venv/bin/ansible-playbook -i inventory/hosts.yaml playbook-update.yaml \
+    --limit=$(hostname --fqdn) -e ansible_connection=local
+  echo "Update finished with exit code $?"
+else
+  echo "No app changes; nothing to do"
+fi
