@@ -19,6 +19,9 @@
     brc_domain: "{{ env.domain }}"
     brc_repo_branch: "{{ env.branch }}"
     brc_context: "{{ env.context | default('brc') }}"
+    brc_keycloak_realm: "{{ env.keycloak_realm | default('') }}"
+    brc_keycloak_client_id: "{{ env.keycloak_client_id | default('') }}"
+    brc_keycloak_client_secret: "{{ env.keycloak_client_secret | default('') }}"
 
 - name: "Clone or update repository ({{ env.name }})"
   ansible.builtin.git:

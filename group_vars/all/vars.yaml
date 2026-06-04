@@ -55,3 +55,19 @@ api_rate_limit_window: 60
 
 # Sentry error tracking (DSN set per-environment)
 sentry_dsn: ""
+
+# Assistant session-cookie signing secret. Real value lives in vault
+# (vault_session_cookie_secret); the empty default keeps local/dev working.
+# The backend refuses to boot when this is empty and ENVIRONMENT is not
+# local/dev/development, so it must be set for prod (and any non-dev env).
+session_cookie_secret: "{{ vault_session_cookie_secret | default('') }}"
+
+# Keycloak / OIDC SSO (Galaxy auth via auth.usegalaxy.org).
+# The issuer host is shared; realm, client id, and client secret differ per
+# environment and are set on each entry in `brc_environments` (inventory).
+# Auth is only configured for environments that set keycloak_client_id -- these
+# empty defaults keep the env template inert everywhere else.
+keycloak_auth_base_url: https://auth.usegalaxy.org
+brc_keycloak_realm: ""
+brc_keycloak_client_id: ""
+brc_keycloak_client_secret: ""
