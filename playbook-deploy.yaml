@@ -43,6 +43,8 @@
       ansible.builtin.command:
         cmd: npm run {{ brc_build_script }} -- --no-lint
         chdir: "{{ brc_deploy_dir }}"
+      environment:
+        NODE_OPTIONS: "--max-old-space-size={{ nextjs_build_max_old_space_mb }}"
       changed_when: true
       when: brc_environments is not defined
 
