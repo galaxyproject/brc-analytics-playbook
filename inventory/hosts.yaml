@@ -22,6 +22,11 @@ all:
               branch: production
               backend_port: 8000
               context: brc
+              # Keycloak SSO -- 'galaxy' realm / 'brc-analytics' client
+              # (provisioned in infrastructure-playbook). Secret lives in vault.
+              keycloak_realm: galaxy
+              keycloak_client_id: brc-analytics
+              keycloak_client_secret: "{{ vault_keycloak_brc_prod_client_secret }}"
             - name: ga2-prod
               domain: genomeark2.org   # TODO: confirm -- apex currently aliases CloudFront
               branch: production
@@ -42,6 +47,11 @@ all:
               branch: main
               backend_port: 8000
               context: brc
+              # Keycloak SSO -- 'galaxy-test' realm / 'dev-brc-analytics' client
+              # (provisioned in infrastructure-playbook). Secret lives in vault.
+              keycloak_realm: galaxy-test
+              keycloak_client_id: dev-brc-analytics
+              keycloak_client_secret: "{{ vault_keycloak_brc_dev_client_secret }}"
             - name: ga2-dev
               domain: dev.genomeark2.org
               branch: main
