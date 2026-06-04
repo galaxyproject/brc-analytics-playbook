@@ -270,14 +270,11 @@
         loop_var: env
       when: brc_environments is defined and (env_filter is not defined or env.name == env_filter)
 
-    - name: Template multi-environment nginx configuration
-      ansible.builtin.template:
-        src: templates/nginx-multi-env.conf.j2
-        dest: /etc/nginx/conf.d/brc-analytics.conf
-        mode: "0644"
-      become: true
-      when: brc_environments is defined
-      notify: Reload nginx
+    # Host-level nginx routing (/etc/nginx/conf.d/brc-analytics.conf) is owned by
+    # playbook-bootstrap.yaml, which runs privileged. It only changes when an
+    # environment is added/removed or re-domained -- an inventory change that
+    # warrants a `make bootstrap` run. Keeping it out of update is what lets
+    # `make update` run unprivileged as the brc-admin service user.
 
     - name: Report update status (multi-env)
       ansible.builtin.debug:
@@ -299,10 +296,3 @@
         cmd: docker system prune -af
       register: docker_prune
       changed_when: "'Total reclaimed space: 0B' not in docker_prune.stdout"
-
-  handlers:
-    - name: Reload nginx
-      ansible.builtin.systemd:
-        name: nginx
-        state: reloaded
-      become: true
