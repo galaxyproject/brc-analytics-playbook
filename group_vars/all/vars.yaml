@@ -24,6 +24,12 @@ docker_compose_project: brc-analytics
 # Node.js version for catalog builds
 nodejs_version: "22"
 
+# Node heap (MB) for the Next.js static export. The catalog is ~120k+ static
+# pages, and the export worker OOMs at the default heap on a build this large.
+# Bump per-host in inventory if a VM has more/less RAM (keep it under physical
+# RAM with headroom -- setting it above RAM makes OOM worse, not better).
+nextjs_build_max_old_space_mb: 8192
+
 # SSL/TLS
 # ssl_mode options: system (use existing certs), vault (from ansible vault), self_signed, letsencrypt
 ssl_mode: system
