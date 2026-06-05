@@ -54,6 +54,7 @@
     chdir: "{{ env_deploy_dir }}"
   environment:
     NODE_OPTIONS: "--max-old-space-size={{ nextjs_build_max_old_space_mb }}"
+    NEXT_PUBLIC_LOGIN_ENABLED: "{{ env.frontend_login_enabled | default(false) | string | lower }}"
   changed_when: true
   when: not (backend_only | default(false))
 

@@ -30,6 +30,11 @@ nodejs_version: "22"
 # RAM with headroom -- setting it above RAM makes OOM worse, not better).
 nextjs_build_max_old_space_mb: 8192
 
+# Show the Galaxy SSO login UI. Baked into the frontend at build time as
+# NEXT_PUBLIC_LOGIN_ENABLED. Default off; enable per environment in inventory
+# (multi-env: set frontend_login_enabled on the brc_environments entry).
+frontend_login_enabled: false
+
 # SSL/TLS
 # ssl_mode options: system (use existing certs), vault (from ansible vault), self_signed, letsencrypt
 ssl_mode: system

@@ -52,6 +52,8 @@ all:
               keycloak_realm: galaxy-test
               keycloak_client_id: dev-brc-analytics
               keycloak_client_secret: "{{ vault_keycloak_brc_dev_client_secret }}"
+              # Show the Galaxy SSO login UI on dev (baked into the frontend build)
+              frontend_login_enabled: true
             - name: ga2-dev
               domain: dev.genomeark2.org
               branch: main

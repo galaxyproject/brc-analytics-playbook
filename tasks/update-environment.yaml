@@ -118,6 +118,7 @@
     chdir: "{{ env_deploy_dir }}"
   environment:
     NODE_OPTIONS: "--max-old-space-size={{ nextjs_build_max_old_space_mb }}"
+    NEXT_PUBLIC_LOGIN_ENABLED: "{{ env.frontend_login_enabled | default(false) | string | lower }}"
   when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or frontend_changes.stdout | default('') | length > 0 or npm_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
 - name: "Template backend environment file ({{ env.name }})"
