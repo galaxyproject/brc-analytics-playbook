@@ -95,3 +95,12 @@ app_db_password: "{{ vault_app_db_password | default('') }}"
 # Apply alembic migrations on backend startup (idempotent; no-ops at head).
 # Set false only if you add an explicit `alembic upgrade head` deploy step.
 run_migrations_on_startup: true
+
+# App database backups: a systemd timer runs pg_dump nightly to app_db_backup_dir
+# on the host and prunes dumps older than the retention window. This DB is the
+# source of truth for user data, so the Docker volume alone is not a backup.
+app_db_backup_enabled: true
+app_db_backup_dir: /var/backups/brc-app-db
+app_db_backup_retention_days: 14
+# systemd OnCalendar expression (default: daily at 02:30, +/- 15min jitter).
+app_db_backup_schedule: "*-*-* 02:30:00"

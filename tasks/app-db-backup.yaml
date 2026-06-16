@@ -1,0 +1,75 @@
+# App database backups: systemd timer that runs a nightly pg_dump of the
+# brc-app-db database(s) to the host, pruned after app_db_backup_retention_days.
+# The script handles both single-env and multi-env hosts. Gated by
+# app_db_backup_enabled; the enable/disable pair keeps it idempotent when the
+# flag is toggled. Runs as {{ brc_user }}, who already has Docker access.
+---
+- name: Create app-db backup directory
+  ansible.builtin.file:
+    path: "{{ app_db_backup_dir }}"
+    state: directory
+    owner: "{{ brc_user }}"
+    group: "{{ brc_group }}"
+    mode: "0750"
+  become: true
+  when: app_db_backup_enabled | default(true)
+
+- name: Install app-db backup script
+  ansible.builtin.template:
+    src: brc-app-db-backup.sh.j2
+    dest: /usr/local/bin/brc-app-db-backup.sh
+    mode: "0755"
+  become: true
+  when: app_db_backup_enabled | default(true)
+
+- name: Create app-db backup systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/brc-app-db-backup.service
+    content: |
+      [Unit]
+      Description=BRC Analytics app database backup (pg_dump)
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/brc-app-db-backup.sh
+      User={{ brc_user }}
+    mode: "0644"
+  become: true
+  when: app_db_backup_enabled | default(true)
+
+- name: Create app-db backup systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/brc-app-db-backup.timer
+    content: |
+      [Unit]
+      Description=Run BRC Analytics app database backup ({{ app_db_backup_schedule }})
+
+      [Timer]
+      OnCalendar={{ app_db_backup_schedule }}
+      RandomizedDelaySec=900
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+    mode: "0644"
+  become: true
+  when: app_db_backup_enabled | default(true)
+
+- name: Enable app-db backup timer
+  ansible.builtin.systemd:
+    name: brc-app-db-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: app_db_backup_enabled | default(true)
+
+- name: Disable app-db backup timer
+  ansible.builtin.systemd:
+    name: brc-app-db-backup.timer
+    enabled: false
+    state: stopped
+    daemon_reload: true
+  become: true
+  failed_when: false
+  when: not (app_db_backup_enabled | default(true))
