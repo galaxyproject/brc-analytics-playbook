@@ -243,7 +243,7 @@
       when: brc_environments is not defined
 
     # ============================================================
-    # MULTI-ENVIRONMENT HOSTS (Jetstream)
+    # MULTI-ENVIRONMENT HOSTS
     # ============================================================
 
     - name: Deploy each environment

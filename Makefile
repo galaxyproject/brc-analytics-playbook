@@ -16,8 +16,6 @@ ANSIBLE_PLAYBOOK = $(VENV)/bin/ansible-playbook -i $(INVENTORY)
 ANSIBLE_GALAXY = $(VENV)/bin/ansible-galaxy
 PIP = $(VENV)/bin/pip
 
-JETSTREAM_HOST = brc-backend.novalocal
-
 EXTRA_ARGS += -e ansible_connection=local
 
 # Wrap a command with sudo keepalive so long-running playbooks don't lose credentials
@@ -26,7 +24,7 @@ define with-sudo
 	@bash -c '(while sudo -v; do sleep 55; done) & PID=$$!; trap "kill $$PID 2>/dev/null" EXIT; $(1)'
 endef
 
-.PHONY: setup bootstrap deploy deploy-brc-prod deploy-ga2-prod deploy-brc-dev deploy-ga2-dev update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev update-staging update-beta rebuild auto-update status restart
+.PHONY: setup bootstrap deploy deploy-brc-prod deploy-ga2-prod deploy-brc-dev deploy-ga2-dev update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev rebuild auto-update status restart
 .PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help
 
 # --- Setup ---
@@ -84,13 +82,6 @@ update-brc-dev:
 
 update-ga2-dev:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS)
-
-# Jetstream env names (kept until jetstream is decommissioned)
-update-staging:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=staging $(EXTRA_ARGS)
-
-update-beta:
-	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=beta $(EXTRA_ARGS)
 
 rebuild:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e force_rebuild=true $(EXTRA_ARGS)
@@ -171,8 +162,6 @@ help:
 	@echo "  update-brc-dev     - Update brc env on dev TACC host"
 	@echo "  update-ga2-dev     - Update ga2 env on dev TACC host"
 	@echo "  deploy-{brc,ga2}-{prod,dev} - First-time deploy of one env"
-	@echo "  update-staging     - Update only staging env (jetstream)"
-	@echo "  update-beta        - Update only beta env (jetstream)"
 	@echo "  rebuild       - Force full rebuild and restart"
 	@echo "  auto-update   - Install/refresh auto-update systemd timer"
 	@echo "  status        - Check service status"

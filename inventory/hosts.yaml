@@ -61,23 +61,3 @@ all:
               context: ga2
               build_script: "build-dev:ga2"
               catalog_build_script: "build-ga2-db"
-
-    # Jetstream hosts run multiple environments on a single VM
-    # using host-level nginx for SSL/routing
-    jetstream:
-      hosts:
-        brc-backend.novalocal:
-          ansible_host: 149.165.172.128
-          ssl_cert_email: dannon.baker@gmail.com
-          # Skip npm/catalog builds - only running backend containers
-          backend_only: true
-          # Multiple environments on this host
-          brc_environments:
-            - name: staging
-              domain: platform-staging.brc-analytics.org
-              branch: main
-              backend_port: 8000
-            - name: beta
-              domain: platform-beta.brc-analytics.org
-              branch: production
-              backend_port: 8001
