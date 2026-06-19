@@ -24,7 +24,7 @@ define with-sudo
 	@bash -c '(while sudo -v; do sleep 55; done) & PID=$$!; trap "kill $$PID 2>/dev/null" EXIT; $(1)'
 endef
 
-.PHONY: setup bootstrap deploy deploy-brc-prod deploy-ga2-prod deploy-brc-dev deploy-ga2-dev update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev rebuild auto-update status restart
+.PHONY: setup bootstrap deploy deploy-brc-prod deploy-brc-prod-build deploy-brc-prod-publish deploy-ga2-prod deploy-brc-dev deploy-brc-dev-build deploy-brc-dev-publish deploy-ga2-dev update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev rebuild auto-update status restart
 .PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help
 
 # --- Setup ---
@@ -65,6 +65,21 @@ deploy-brc-dev:
 
 deploy-ga2-dev:
 	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=ga2-dev $(EXTRA_ARGS)
+
+# Prebuilt cutover (deploy path): -build stages a release while the old one
+# keeps serving; -publish flips the 'current' symlink to it and starts the
+# backend. Lets the heavy Next build run off the cutover's critical path.
+deploy-brc-prod-build:
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod -e deploy_mode=build $(EXTRA_ARGS)
+
+deploy-brc-prod-publish:
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-prod -e deploy_mode=publish $(EXTRA_ARGS)
+
+deploy-brc-dev-build:
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev -e deploy_mode=build $(EXTRA_ARGS)
+
+deploy-brc-dev-publish:
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=brc-dev -e deploy_mode=publish $(EXTRA_ARGS)
 
 # --- Update (pull, rebuild, restart) ---
 
@@ -162,6 +177,8 @@ help:
 	@echo "  update-brc-dev     - Update brc env on dev TACC host"
 	@echo "  update-ga2-dev     - Update ga2 env on dev TACC host"
 	@echo "  deploy-{brc,ga2}-{prod,dev} - First-time deploy of one env"
+	@echo "  deploy-brc-{prod,dev}-build   - Prebuild+stage a release (old one keeps serving)"
+	@echo "  deploy-brc-{prod,dev}-publish - Atomic swap to the staged release + start backend"
 	@echo "  rebuild       - Force full rebuild and restart"
 	@echo "  auto-update   - Install/refresh auto-update systemd timer"
 	@echo "  status        - Check service status"
