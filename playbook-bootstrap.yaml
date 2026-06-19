@@ -97,6 +97,35 @@
       loop: "{{ brc_environments }}"
       when: brc_environments is defined
 
+    # Guarantee a valid 'current' release symlink before nginx ever roots at it.
+    # On an already-deployed env, seed it from a copy of the live out/ (so it
+    # keeps serving through the nginx re-render and survives out/ being moved
+    # into releases/ on the next deploy) -- zero-downtime adoption. On a fresh
+    # env, an empty placeholder keeps the nginx root valid until the first
+    # deploy publishes a real release. Runs as the service user so the files are
+    # owned correctly; the SELinux chcon below relabels releases/ as web content.
+    - name: Ensure a current release symlink exists per env
+      ansible.builtin.shell: |
+        set -euo pipefail
+        mkdir -p releases
+        if [ -e current ]; then exit 0; fi
+        if [ -d out ]; then
+          rm -rf releases/_adopt
+          cp -a out releases/_adopt
+          ln -sfn releases/_adopt current
+        else
+          mkdir -p releases/_placeholder
+          ln -sfn releases/_placeholder current
+        fi
+      args:
+        chdir: "/opt/brc-analytics-{{ item.name }}"
+      become: false
+      loop: "{{ brc_environments }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: brc_environments is defined
+      changed_when: false
+
     # Node.js installation (for catalog builds)
     - name: Install NodeSource repository (RHEL-based)
       ansible.builtin.shell: |

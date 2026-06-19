@@ -5,6 +5,12 @@
 # are owned by playbook-bootstrap.yaml and must be in place before this
 # runs. There is no privilege escalation here.
 #
+# deploy_mode (default "full"):
+#   full    -- clone, build, stage a release, then publish (atomic swap) + start
+#   build   -- clone, build, stage a release WITHOUT swapping it live or touching
+#              the running containers (prebuild off the cutover's critical path)
+#   publish -- swap to the last staged release and (re)start the backend, no rebuild
+#
 # env:
 #   name: brc-dev
 #   domain: dev.brc-analytics.org
@@ -23,6 +29,8 @@
     brc_keycloak_client_id: "{{ env.keycloak_client_id | default('') }}"
     brc_keycloak_client_secret: "{{ env.keycloak_client_secret | default('') }}"
 
+# --- Build phase (skipped in publish mode, which ships an already-built release) ---
+
 - name: "Clone or update repository ({{ env.name }})"
   ansible.builtin.git:
     repo: "{{ env_repo_url }}"
@@ -30,6 +38,7 @@
     version: "{{ env.branch }}"
     force: true
   register: git_clone
+  when: deploy_mode | default('full') != 'publish'
 
 # npm/catalog steps can be skipped for backend_only deployments because
 # the catalog output files are committed to the repo and pulled with git
@@ -39,14 +48,18 @@
     chdir: "{{ env_deploy_dir }}"
   register: npm_install
   changed_when: "'added' in npm_install.stdout"
-  when: not (backend_only | default(false))
+  when:
+    - not (backend_only | default(false))
+    - deploy_mode | default('full') != 'publish'
 
 - name: "Build catalog data ({{ env.name }})"
   ansible.builtin.command:
     cmd: npm run {{ env.catalog_build_script | default('build-brc-db') }}
     chdir: "{{ env_deploy_dir }}"
   changed_when: true
-  when: not (backend_only | default(false))
+  when:
+    - not (backend_only | default(false))
+    - deploy_mode | default('full') != 'publish'
 
 - name: "Build Next.js static export ({{ env.name }})"
   ansible.builtin.command:
@@ -56,7 +69,32 @@
     NODE_OPTIONS: "--max-old-space-size={{ nextjs_build_max_old_space_mb }}"
     NEXT_PUBLIC_LOGIN_ENABLED: "{{ env.frontend_login_enabled | default(false) | string | lower }}"
   changed_when: true
-  when: not (backend_only | default(false))
+  when:
+    - not (backend_only | default(false))
+    - deploy_mode | default('full') != 'publish'
+
+# Stage the freshly-built out/ as an immutable release. A same-filesystem mv is
+# instant and preserves the SELinux label out/ inherited from the (chcon'd) env
+# dir, so no privileged relabel is needed. .staged-release records what the
+# publish step should flip to (also read back by deploy_mode=publish).
+- name: "Stage frontend release ({{ env.name }})"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    sha="$(git rev-parse --short HEAD)"
+    rel="releases/${sha}-$(date +%Y%m%d%H%M%S)"
+    mkdir -p releases
+    rm -rf "$rel"
+    mv out "$rel"
+    echo "$rel" > .staged-release
+  args:
+    chdir: "{{ env_deploy_dir }}"
+  register: staged_release
+  changed_when: true
+  when:
+    - not (backend_only | default(false))
+    - deploy_mode | default('full') != 'publish'
+
+# --- Config + image (run in every mode; cheap and idempotent) ---
 
 - name: "Template backend environment file ({{ env.name }})"
   ansible.builtin.template:
@@ -70,13 +108,6 @@
     dest: "{{ env_backend_dir }}/docker-compose.override.yml"
     mode: "0644"
 
-- name: "Stop any running containers ({{ env.name }})"
-  ansible.builtin.command:
-    cmd: docker compose -p brc-analytics-{{ env.name }} down
-    chdir: "{{ env_backend_dir }}"
-  failed_when: false
-  changed_when: false
-
 - name: "Build backend image ({{ env.name }})"
   ansible.builtin.command:
     cmd: docker compose -p brc-analytics-{{ env.name }} build backend
@@ -84,11 +115,23 @@
   environment:
     APP_VERSION: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
 
+# --- Publish phase (skipped in build mode, which leaves the live release and the
+#     running containers untouched so a release can be staged off the cutover path) ---
+
+- name: "Stop any running containers ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: docker compose -p brc-analytics-{{ env.name }} down
+    chdir: "{{ env_backend_dir }}"
+  failed_when: false
+  changed_when: false
+  when: deploy_mode | default('full') != 'build'
+
 - name: "Start Docker services ({{ env.name }})"
   ansible.builtin.command:
     cmd: docker compose -p brc-analytics-{{ env.name }} up -d
     chdir: "{{ env_backend_dir }}"
   register: docker_up
+  when: deploy_mode | default('full') != 'build'
 
 - name: "Wait for backend to be healthy ({{ env.name }})"
   ansible.builtin.uri:
@@ -98,9 +141,42 @@
   until: health_result.status == 200
   retries: 30
   delay: 5
+  when: deploy_mode | default('full') != 'build'
+
+# Flip the served 'current' symlink to the staged release in one atomic step
+# (after the backend is healthy), then prune to releases_keep -- the live target
+# is always kept.
+- name: "Publish frontend release -- atomic swap ({{ env.name }})"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    rel="$(cat .staged-release)"
+    test -d "$rel"
+    ln -sfn "$rel" current
+    cur="$(readlink current)"
+    ls -1dt releases/*/ 2>/dev/null | sed 's:/*$::' \
+      | grep -vx "$cur" \
+      | tail -n +{{ releases_keep | int }} \
+      | xargs -r rm -rf
+  args:
+    chdir: "{{ env_deploy_dir }}"
+  changed_when: true
+  when:
+    - not (backend_only | default(false))
+    - deploy_mode | default('full') != 'build'
+
+# Record the deployed commit so update's change-detection diffs from here.
+# Resolved from the checkout (not git_clone) so it is correct in publish mode too.
+- name: "Resolve deployed commit ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: git rev-parse HEAD
+    chdir: "{{ env_deploy_dir }}"
+  register: deployed_commit
+  changed_when: false
+  when: deploy_mode | default('full') != 'build'
 
 - name: "Record successful deploy commit ({{ env.name }})"
   ansible.builtin.copy:
-    content: "{{ git_clone.after }}\n"
+    content: "{{ deployed_commit.stdout }}\n"
     dest: "{{ env_deploy_dir }}/.last-update-commit"
     mode: "0644"
+  when: deploy_mode | default('full') != 'build'

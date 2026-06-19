@@ -35,6 +35,18 @@ nextjs_build_max_old_space_mb: 8192
 # (multi-env: set frontend_login_enabled on the brc_environments entry).
 frontend_login_enabled: false
 
+# Frontend releases (zero-downtime publish, multi-env hosts)
+# Each build is staged into /opt/brc-analytics-<env>/releases/<sha-ts>/ and the
+# served `current` symlink is flipped atomically -- nginx never sees a
+# half-written tree. releases_keep bounds how many recent releases are retained
+# (the live one is always kept).
+releases_keep: 3
+# Deploy-path phase selector: full = build then publish (default), build =
+# build+stage a release WITHOUT swapping it live or touching containers
+# (prebuild off the cutover's critical path), publish = swap to the last staged
+# release and start the backend without rebuilding.
+deploy_mode: full
+
 # SSL/TLS
 # ssl_mode options: system (use existing certs), vault (from ansible vault), self_signed, letsencrypt
 ssl_mode: system
