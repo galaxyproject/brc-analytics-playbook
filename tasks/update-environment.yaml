@@ -2,6 +2,12 @@
 #
 # Run as the brc-admin service user. No escalation; host setup is
 # managed by playbook-bootstrap.yaml.
+#
+# Frontend updates are zero-downtime: the Next build runs into a throwaway out/
+# while host nginx keeps serving the live release via the 'current' symlink;
+# only once the build succeeds is out/ staged as a new release and 'current'
+# flipped atomically. The backend container is recreated only when the backend
+# actually changed -- frontend-only updates never touch it.
 ---
 - name: "Set environment-specific variables for {{ env.name }}"
   ansible.builtin.set_fact:
@@ -119,7 +125,47 @@
   environment:
     NODE_OPTIONS: "--max-old-space-size={{ nextjs_build_max_old_space_mb }}"
     NEXT_PUBLIC_LOGIN_ENABLED: "{{ env.frontend_login_enabled | default(false) | string | lower }}"
+  register: frontend_rebuild
   when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or frontend_changes.stdout | default('') | length > 0 or npm_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
+
+# Stage the rebuilt out/ as an immutable release. mv is atomic and preserves the
+# SELinux label out/ inherited from the env dir -- no privileged relabel needed.
+- name: "Stage frontend release ({{ env.name }})"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    sha="$(git rev-parse --short HEAD)"
+    rel="releases/${sha}-$(date +%Y%m%d%H%M%S)"
+    mkdir -p releases
+    rm -rf "$rel"
+    mv out "$rel"
+    echo "$rel" > .staged-release
+  args:
+    chdir: "{{ env_deploy_dir }}"
+  register: staged_release
+  changed_when: true
+  when:
+    - not (backend_only | default(false))
+    - frontend_rebuild.changed | default(false)
+
+# Flip 'current' to the new release atomically (host nginx served the previous
+# release untouched throughout the build), then prune to releases_keep.
+- name: "Publish frontend release -- atomic swap ({{ env.name }})"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    rel="$(cat .staged-release)"
+    test -d "$rel"
+    ln -sfn "$rel" current
+    cur="$(readlink current)"
+    ls -1dt releases/*/ 2>/dev/null | sed 's:/*$::' \
+      | grep -vx "$cur" \
+      | tail -n +{{ releases_keep | int }} \
+      | xargs -r rm -rf
+  args:
+    chdir: "{{ env_deploy_dir }}"
+  changed_when: true
+  when:
+    - not (backend_only | default(false))
+    - staged_release is changed
 
 - name: "Template backend environment file ({{ env.name }})"
   ansible.builtin.template:
@@ -135,13 +181,24 @@
     mode: "0644"
   register: compose_template
 
+# Only the backend container is restarted, and only when it actually changed.
+# A frontend-only update published above never recreates the API container.
+- name: "Check for backend source changes ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: git diff --name-only {{ last_update_commit }} HEAD -- backend/
+    chdir: "{{ env_deploy_dir }}"
+  register: backend_changes
+  changed_when: false
+  failed_when: false
+
 - name: "Build backend image ({{ env.name }})"
   ansible.builtin.command:
     cmd: docker compose -p brc-analytics-{{ env.name }} build backend
     chdir: "{{ env_backend_dir }}"
   environment:
     APP_VERSION: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
-  when: git_pull.changed or env_template.changed or compose_template.changed or (force_rebuild | default(false))
+  register: backend_build
+  when: backend_changes.stdout | default('') | length > 0 or env_template.changed or compose_template.changed or (force_rebuild | default(false))
 
 # Tolerate the slow-healthcheck race (backend cold-starts slower than a
 # dependent container's depends_on wait); the health check below is the gate.
@@ -149,7 +206,7 @@
   ansible.builtin.command:
     cmd: docker compose -p brc-analytics-{{ env.name }} up -d --force-recreate
     chdir: "{{ env_backend_dir }}"
-  when: git_pull.changed or env_template.changed or compose_template.changed or (force_rebuild | default(false))
+  when: backend_build.changed | default(false) or env_template.changed or compose_template.changed or (force_rebuild | default(false))
   register: docker_restart
   failed_when: false
 
