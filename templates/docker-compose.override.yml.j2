@@ -17,3 +17,30 @@ services:
       # Mount entire /etc/letsencrypt since live/ contains symlinks to archive/
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - {{ brc_deploy_dir }}/out:/usr/share/nginx/html:ro
+{% if brc_keycloak_client_id %}
+  # Persistent user-data store. Mirrors the app repo's docker-compose.auth.yml
+  # brc-app-db, but stands alone here -- Keycloak runs externally in prod, so we
+  # only add the database, not the whole auth stack. Gated on auth being
+  # configured (brc_keycloak_client_id) since persistence requires identity.
+  backend:
+    depends_on:
+      brc-app-db:
+        condition: service_healthy
+  brc-app-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: "{{ app_db_name }}"
+      POSTGRES_USER: "{{ app_db_user }}"
+      POSTGRES_PASSWORD: "{{ app_db_password }}"
+    volumes:
+      - brc_app_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ app_db_user }} -d {{ app_db_name }}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  brc_app_db_data:
+{% endif %}

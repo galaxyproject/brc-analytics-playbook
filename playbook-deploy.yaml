@@ -228,6 +228,11 @@
       become: true
       when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
+    # App database backups (only where the persistent DB exists)
+    - name: Set up app database backups (single-env)
+      ansible.builtin.include_tasks: tasks/app-db-backup.yaml
+      when: brc_environments is not defined and (brc_keycloak_client_id | default(''))
+
     - name: Display deployment completion message (single-env)
       ansible.builtin.debug:
         msg: |
@@ -252,6 +257,11 @@
       loop_control:
         loop_var: env
       when: brc_environments is defined and (env_filter is not defined or env.name == env_filter)
+
+    # App database backups -- one host-level timer covering all DB-enabled envs
+    - name: Set up app database backups (multi-env)
+      ansible.builtin.include_tasks: tasks/app-db-backup.yaml
+      when: brc_environments is defined
 
     - name: Display deployment completion message (multi-env)
       ansible.builtin.debug:

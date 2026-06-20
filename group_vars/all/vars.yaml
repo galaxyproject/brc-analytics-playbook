@@ -82,3 +82,25 @@ keycloak_auth_base_url: https://auth.usegalaxy.org
 brc_keycloak_realm: ""
 brc_keycloak_client_id: ""
 brc_keycloak_client_secret: ""
+
+# App database (persistent user data: favorites, saved analyses, workflow runs).
+# Provisioned only where auth is configured -- the env template and compose
+# overrides gate the DATABASE_URL and the postgres service on
+# brc_keycloak_client_id, since persistence requires identity. The password's
+# real value lives in vault (vault_app_db_password); the empty default keeps
+# non-DB environments inert. Add it with `make vault-edit` before enabling.
+app_db_name: brc_app
+app_db_user: brc
+app_db_password: "{{ vault_app_db_password | default('') }}"
+# Apply alembic migrations on backend startup (idempotent; no-ops at head).
+# Set false only if you add an explicit `alembic upgrade head` deploy step.
+run_migrations_on_startup: true
+
+# App database backups: a systemd timer runs pg_dump nightly to app_db_backup_dir
+# on the host and prunes dumps older than the retention window. This DB is the
+# source of truth for user data, so the Docker volume alone is not a backup.
+app_db_backup_enabled: true
+app_db_backup_dir: /var/backups/brc-app-db
+app_db_backup_retention_days: 14
+# systemd OnCalendar expression (default: daily at 02:30, +/- 15min jitter).
+app_db_backup_schedule: "*-*-* 02:30:00"
