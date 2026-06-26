@@ -86,12 +86,17 @@ brc_keycloak_client_secret: ""
 # App database (persistent user data: favorites, saved analyses, workflow runs).
 # Provisioned only where auth is configured -- the env template and compose
 # overrides gate the DATABASE_URL and the postgres service on
-# brc_keycloak_client_id, since persistence requires identity. The password's
-# real value lives in vault (vault_app_db_password); the empty default keeps
-# non-DB environments inert. Add it with `make vault-edit` before enabling.
+# brc_keycloak_client_id, since persistence requires identity.
+#
+# app_db_password is set PER ENVIRONMENT from the inventory: each brc_environments
+# entry references its own vault key (vault_app_db_password_dev /
+# vault_app_db_password_prod) and it's threaded through set_fact, mirroring the
+# keycloak client secret -- so dev and prod get distinct passwords from the
+# shared vault. The empty default here keeps non-DB envs inert. Add the per-env
+# keys with `make vault-edit` before enabling.
 app_db_name: brc_app
 app_db_user: brc
-app_db_password: "{{ vault_app_db_password | default('') }}"
+app_db_password: ""
 # Apply alembic migrations on backend startup (idempotent; no-ops at head).
 # Set false only if you add an explicit `alembic upgrade head` deploy step.
 run_migrations_on_startup: true

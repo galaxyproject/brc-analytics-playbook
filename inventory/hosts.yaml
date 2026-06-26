@@ -27,6 +27,7 @@ all:
               keycloak_realm: galaxy
               keycloak_client_id: brc-analytics
               keycloak_client_secret: "{{ vault_keycloak_brc_prod_client_secret }}"
+              app_db_password: "{{ vault_app_db_password_prod }}"
             - name: ga2-prod
               domain: genomeark2.org   # TODO: confirm -- apex currently aliases CloudFront
               branch: production
@@ -52,6 +53,7 @@ all:
               keycloak_realm: galaxy-test
               keycloak_client_id: dev-brc-analytics
               keycloak_client_secret: "{{ vault_keycloak_brc_dev_client_secret }}"
+              app_db_password: "{{ vault_app_db_password_dev }}"
               # Show the Galaxy SSO login UI on dev (baked into the frontend build)
               frontend_login_enabled: true
             - name: ga2-dev
