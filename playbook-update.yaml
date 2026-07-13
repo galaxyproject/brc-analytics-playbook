@@ -271,6 +271,7 @@
       loop: "{{ brc_environments }}"
       loop_control:
         loop_var: env
+        label: "{{ env.name }}"
       when: brc_environments is defined and (env_filter is not defined or env.name == env_filter)
 
     # Host-level nginx routing (/etc/nginx/conf.d/brc-analytics.conf) is owned by

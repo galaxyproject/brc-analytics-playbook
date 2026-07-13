@@ -256,6 +256,7 @@
       loop: "{{ brc_environments }}"
       loop_control:
         loop_var: env
+        label: "{{ env.name }}"
       when: brc_environments is defined and (env_filter is not defined or env.name == env_filter)
 
     # App database backups -- one host-level timer covering all DB-enabled envs

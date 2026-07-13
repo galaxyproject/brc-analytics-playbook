@@ -95,6 +95,8 @@
         group: "{{ brc_group }}"
         mode: "0755"
       loop: "{{ brc_environments }}"
+      loop_control:
+        label: "{{ item.name }}"
       when: brc_environments is defined
 
     # Node.js installation (for catalog builds)
@@ -155,6 +157,8 @@
       ansible.builtin.command:
         cmd: chcon -R -t httpd_sys_content_t /opt/brc-analytics-{{ item.name }}
       loop: "{{ brc_environments }}"
+      loop_control:
+        label: "{{ item.name }}"
       when: brc_environments is defined and ansible_selinux.status == "enabled"
       changed_when: false
       failed_when: false
@@ -167,6 +171,8 @@
         path: "/etc/letsencrypt/live/{{ item.cert_domain | default(item.domain) }}/fullchain.pem"
       register: per_env_ssl_stat
       loop: "{{ brc_environments }}"
+      loop_control:
+        label: "{{ item.name }}"
       when: brc_environments is defined and not (item.ssl_skip | default(false))
 
     - name: Stop nginx briefly for standalone certbot
