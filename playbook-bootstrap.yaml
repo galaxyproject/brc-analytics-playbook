@@ -121,7 +121,10 @@
         fi
       args:
         chdir: "/opt/brc-analytics-{{ item.name }}"
-      become: false
+      # bootstrap runs privileged (via the operator's sudo), so become the
+      # service user here rather than leaving the files owned by root/operator.
+      become: true
+      become_user: "{{ brc_user }}"
       loop: "{{ brc_environments }}"
       loop_control:
         label: "{{ item.name }}"
