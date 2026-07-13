@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Managed by Ansible - do not edit manually
+#
+# Nightly pg_dump of the brc-app-db Postgres database(s) to the host, with
+# retention pruning. This database holds the only copy of user favorites,
+# saved analyses, and workflow-run history -- the Docker volume alone is not a
+# backup. Driven by the brc-app-db-backup systemd timer.
+set -euo pipefail
+
+BACKUP_DIR="{{ app_db_backup_dir }}"
+RETENTION_DAYS="{{ app_db_backup_retention_days }}"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+
+mkdir -p "$BACKUP_DIR"
+
+# dump <label> <compose_dir> [project_flag]
+# Runs pg_dump inside the running brc-app-db container for that compose project
+# and writes a gzipped dump. -T disables the pseudo-TTY so the stream pipes
+# cleanly; pipefail makes a pg_dump failure fail the whole pipeline.
+dump() {
+  local label="$1" dir="$2" pflag="${3:-}"
+  local out="$BACKUP_DIR/${label}-${STAMP}.sql.gz"
+  if [ ! -d "$dir" ]; then
+    echo "skip: $label ($dir missing)" >&2
+    return 0
+  fi
+  if ( cd "$dir" && docker compose $pflag exec -T brc-app-db \
+        pg_dump -U {{ app_db_user }} -d {{ app_db_name }} ) | gzip > "$out.tmp"; then
+    mv -f "$out.tmp" "$out"
+    echo "backed up $label -> $out"
+  else
+    rm -f "$out.tmp"
+    echo "WARN: backup failed for $label (db not running?)" >&2
+  fi
+}
+
+{% if brc_environments is defined %}
+# Multi-env host: one DB per environment, namespaced by compose project.
+{% for e in brc_environments if e.keycloak_client_id | default('') %}
+dump "brc-analytics-{{ e.name }}" "/opt/brc-analytics-{{ e.name }}/backend" "-p brc-analytics-{{ e.name }}"
+{% endfor %}
+{% else %}
+# Single-env host: the backend dir's default compose project.
+dump "{{ docker_compose_project }}" "{{ brc_backend_dir }}"
+{% endif %}
+
+# Prune dumps older than the retention window.
+find "$BACKUP_DIR" -name '*.sql.gz' -type f -mtime +"$RETENTION_DAYS" -delete
+echo "pruned dumps older than ${RETENTION_DAYS}d"
