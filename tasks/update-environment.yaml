@@ -115,7 +115,7 @@
 
 - name: "Rebuild Next.js static export ({{ env.name }})"
   ansible.builtin.command:
-    cmd: npm run {{ env.build_script | default(brc_build_script) }} -- --no-lint
+    cmd: npm run {{ env.build_script | default(brc_build_script) }}
     chdir: "{{ env_deploy_dir }}"
   environment:
     NODE_OPTIONS: "--max-old-space-size={{ nextjs_build_max_old_space_mb }}"

@@ -41,7 +41,7 @@
     # Build Next.js static export
     - name: Build Next.js static export
       ansible.builtin.command:
-        cmd: npm run {{ brc_build_script }} -- --no-lint
+        cmd: npm run {{ brc_build_script }}
         chdir: "{{ brc_deploy_dir }}"
       environment:
         NODE_OPTIONS: "--max-old-space-size={{ nextjs_build_max_old_space_mb }}"
