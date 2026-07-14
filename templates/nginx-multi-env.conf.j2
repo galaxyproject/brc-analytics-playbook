@@ -54,7 +54,7 @@ server {
     }
 {% else %}
     location /api/ {
-        alias /opt/brc-analytics-{{ env.name }}/out/api/;
+        alias /opt/brc-analytics-{{ env.name }}/current/api/;
         add_header Access-Control-Allow-Origin $cors_origin always;
         add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
         add_header X-Content-Type-Options "nosniff" always;
@@ -78,7 +78,7 @@ server {
     }
 
     location / {
-        root /opt/brc-analytics-{{ env.name }}/out;
+        root /opt/brc-analytics-{{ env.name }}/current;
         try_files $uri $uri.html $uri/ /index.html;
     }
 {% endif %}
@@ -152,7 +152,7 @@ server {
 {% else %}
     # Static API data files (from the Next.js build output)
     location /api/ {
-        alias /opt/brc-analytics-{{ env.name }}/out/api/;
+        alias /opt/brc-analytics-{{ env.name }}/current/api/;
         add_header Access-Control-Allow-Origin $cors_origin always;
         add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
         add_header X-Content-Type-Options "nosniff" always;
@@ -179,7 +179,7 @@ server {
 
     # Static frontend
     location / {
-        root /opt/brc-analytics-{{ env.name }}/out;
+        root /opt/brc-analytics-{{ env.name }}/current;
         try_files $uri $uri.html $uri/ /index.html;
 
         location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$ {
