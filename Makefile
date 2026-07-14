@@ -16,7 +16,10 @@ ANSIBLE_PLAYBOOK = $(VENV)/bin/ansible-playbook -i $(INVENTORY)
 ANSIBLE_GALAXY = $(VENV)/bin/ansible-galaxy
 PIP = $(VENV)/bin/pip
 
-EXTRA_ARGS += -e ansible_connection=local
+# `override` so a caller passing their own EXTRA_ARGS (e.g. -e force_rebuild=true)
+# still gets the local connection appended -- otherwise a CLI EXTRA_ARGS wins
+# outright and ansible tries to SSH to the host (which brc-admin can't do).
+override EXTRA_ARGS += -e ansible_connection=local
 
 # Wrap a command with sudo keepalive so long-running playbooks don't lose credentials
 define with-sudo
