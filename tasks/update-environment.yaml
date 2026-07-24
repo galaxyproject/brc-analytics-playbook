@@ -8,6 +8,12 @@
 # only once the build succeeds is out/ staged as a new release and 'current'
 # flipped atomically. The backend container is recreated only when the backend
 # actually changed -- frontend-only updates never touch it.
+#
+# Change-detection baselines: the FRONTEND diffs against the sha in the 'current'
+# symlink (what's actually serving) so a client-side update can never be silently
+# skipped by a .last-update-commit marker that drifted ahead of reality. The
+# BACKEND diffs against that marker (plus a version-drift self-heal that forces a
+# rebuild so APP_VERSION never goes stale).
 ---
 - name: "Set environment-specific variables for {{ env.name }}"
   ansible.builtin.set_fact:
@@ -30,6 +36,23 @@
     force: true
   register: git_pull
 
+# "Rebuild everything" baselines diff against the empty tree. The canonical
+# empty-tree constant (4b825dc6...7b23) is NOT reliably present in a repo's object
+# DB -- `git diff <that> HEAD` fails with "fatal: bad object", and failed_when:false
+# then silently swallows it into "no changes" (a rebuild that never happens). Write
+# the empty tree and capture the hash git itself produces, so every empty-tree diff
+# below actually resolves.
+- name: "Materialize the empty tree object ({{ env.name }})"
+  ansible.builtin.command:
+    cmd: git hash-object -w -t tree /dev/null
+    chdir: "{{ env_deploy_dir }}"
+  register: empty_tree_result
+  changed_when: false
+
+- name: "Set empty tree baseline ({{ env.name }})"
+  ansible.builtin.set_fact:
+    git_empty_tree: "{{ empty_tree_result.stdout | trim }}"
+
 - name: "Check for last update commit marker ({{ env.name }})"
   ansible.builtin.stat:
     path: "{{ env_deploy_dir }}/.last-update-commit"
@@ -45,7 +68,7 @@
 
 - name: "Set last update commit ({{ env.name }})"
   ansible.builtin.set_fact:
-    last_update_commit: "{{ last_update_raw.stdout | trim if last_update_marker.stat.exists else '4b825dc642cb6eb9a060e54bf899d15363da7b23' }}"
+    last_update_commit: "{{ last_update_raw.stdout | trim if last_update_marker.stat.exists else git_empty_tree }}"
 
 - name: "Validate last update commit is set ({{ env.name }})"
   ansible.builtin.assert:
@@ -54,9 +77,10 @@
       - last_update_commit | length >= 7
     fail_msg: "last_update_commit is empty or too short; change detection would silently skip rebuilds"
 
-# Self-heal: a stale marker silently wedges change-detection into no-op updates.
-# If the running build's reported version doesn't match the checked-out target,
-# reset the diff baseline to the empty tree so every path rebuilds.
+# Backend-rebuild self-heal: if the running backend's reported version doesn't
+# match the checked-out target, reset the BACKEND diff baseline to the empty tree
+# so the backend image rebuilds and re-bakes APP_VERSION. The frontend baseline is
+# derived from the 'current' symlink below, so the frontend self-heals on its own.
 - name: "Get currently-running backend version ({{ env.name }})"
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ env.backend_port }}/api/v1/version"
@@ -73,16 +97,53 @@
 
 - name: "Force full rebuild baseline when deployed version drifted ({{ env.name }})"
   ansible.builtin.set_fact:
-    last_update_commit: "4b825dc642cb6eb9a060e54bf899d15363da7b23"
+    last_update_commit: "{{ git_empty_tree }}"
   when:
     - not (backend_only | default(false))
     - running_app_version != target_app_version
+
+# Frontend change-detection baselines on the commit that is ACTUALLY serving --
+# parsed from the 'current' symlink (releases/<sha>-<ts>), the literal release
+# host nginx serves. This can't drift ahead of reality the way the .last-update-commit
+# marker can: if the marker ever jumps past what was deployed, the frontend would
+# be silently frozen; keying off `current` means a client-side update always
+# rebuilds whenever the served release != HEAD. Falls back to the empty-tree hash
+# (rebuild everything) for a fresh/placeholder release or a sha no longer in history.
+- name: "Resolve deployed frontend commit from the current symlink ({{ env.name }})"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    # Print the deployed frontend sha only if 'current' resolves to a real, present
+    # release directory whose name is a hex sha for a commit still in history.
+    # Anything else (no symlink, dangling target, placeholder, non-hex, unknown
+    # commit) prints nothing, and the caller falls back to the empty-tree baseline
+    # -> rebuild everything.
+    [ -L current ] || exit 0
+    target="$(readlink current || true)"
+    [ -n "$target" ] || exit 0
+    [ -d "$target" ] || exit 0
+    sha="$(basename "$target")"
+    sha="${sha%%-*}"
+    case "$sha" in
+      '' | _placeholder | *[!0-9a-f]*) exit 0 ;;
+    esac
+    git cat-file -e "${sha}^{commit}" 2>/dev/null || exit 0
+    echo "$sha"
+  args:
+    chdir: "{{ env_deploy_dir }}"
+  register: deployed_frontend_commit_result
+  changed_when: false
+  when: not (backend_only | default(false))
+
+- name: "Set deployed frontend commit baseline ({{ env.name }})"
+  ansible.builtin.set_fact:
+    deployed_frontend_commit: "{{ deployed_frontend_commit_result.stdout | trim or git_empty_tree }}"
+  when: not (backend_only | default(false))
 
 # npm/catalog steps can be skipped for backend_only deployments because
 # the catalog output files are committed to the repo and pulled with git
 - name: "Check for catalog source changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only {{ last_update_commit }} HEAD -- catalog/source/
+    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- catalog/source/
     chdir: "{{ env_deploy_dir }}"
   register: catalog_changes
   changed_when: false
@@ -97,7 +158,7 @@
 
 - name: "Check for frontend source changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only {{ last_update_commit }} HEAD -- app/ components/ pages/ public/ site-config/ catalog/ next.config.js next.config.mjs package.json
+    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- app/ components/ pages/ public/ site-config/ catalog/ next.config.js next.config.mjs package.json
     chdir: "{{ env_deploy_dir }}"
   register: frontend_changes
   changed_when: false
@@ -106,7 +167,7 @@
 
 - name: "Check for package-lock changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only {{ last_update_commit }} HEAD -- package-lock.json
+    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- package-lock.json
     chdir: "{{ env_deploy_dir }}"
   register: npm_changes
   changed_when: false
