@@ -190,6 +190,13 @@
   register: frontend_rebuild
   when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or frontend_changes.stdout | default('') | length > 0 or npm_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
+# Runs unconditionally rather than off the change-detection flags: the images
+# track the bucket, not the git checkout, so a new upstream image has to land
+# even on an update that rebuilds nothing. A no-op costs one listing request.
+- name: "Sync organism images ({{ env.name }})"
+  ansible.builtin.include_tasks: tasks/organism-images.yaml
+  when: not (backend_only | default(false))
+
 # Stage the rebuilt out/ as an immutable release. mv is atomic and preserves the
 # SELinux label out/ inherited from the env dir -- no privileged relabel needed.
 - name: "Stage frontend release ({{ env.name }})"

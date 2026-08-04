@@ -184,6 +184,21 @@ make cert-generate DOMAIN=platform.brc-analytics.org
 
 Then add the output to your vault file and set `ssl_mode: vault`.
 
+### Organism Images (ga2 / GenomeArk)
+
+The ga2 catalog points every assembly at `/organism_image/<species>.jpg`, but the app repo gitignores `public/organism_image/` — those ~360MB of JPEGs live in a public Jetstream bucket instead. A fresh checkout has none of them, so without this step the site renders with every organism image broken.
+
+An environment opts in from inventory:
+
+```yaml
+- name: ga2-dev
+  organism_images: ga2   # names the mirror dir under organism_images_dir
+```
+
+Bootstrap creates and SELinux-labels `/opt/brc-analytics-images/<set>/`; deploy and update mirror the bucket into it (skipping files already present at the same size, so a no-op run is one listing request); host nginx serves that directory at `/organism_image/`.
+
+They stay outside the per-env release trees on purpose. Anything under `public/` is copied into `out/` and staged as an immutable release, so fetching them at build time would cost `releases_keep` copies — roughly 1.4GB per environment — and re-download the set on every deploy. Bucket coordinates live in `group_vars/all/vars.yaml` (`organism_images_endpoint`, `organism_images_bucket`, `organism_images_prefix`).
+
 ### Secrets (Ansible Vault)
 
 Sensitive values are stored encrypted in `group_vars/*/vault.yaml`.

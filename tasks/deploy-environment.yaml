@@ -74,6 +74,13 @@
     - not (backend_only | default(false))
     - deploy_mode | default('full') != 'publish'
 
+# Independent of the build (nginx serves these straight from a persistent dir),
+# so it runs in publish mode too -- a publish-only cutover on a fresh host still
+# needs the images in place.
+- name: "Sync organism images ({{ env.name }})"
+  ansible.builtin.include_tasks: tasks/organism-images.yaml
+  when: not (backend_only | default(false))
+
 # Stage the freshly-built out/ as an immutable release. A same-filesystem mv is
 # instant and preserves the SELinux label out/ inherited from the (chcon'd) env
 # dir, so no privileged relabel is needed. .staged-release records what the

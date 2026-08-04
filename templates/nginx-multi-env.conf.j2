@@ -77,6 +77,15 @@ server {
         add_header Content-Type text/plain;
     }
 
+{% if env.organism_images is defined %}
+    location /organism_image/ {
+        alias {{ organism_images_dir }}/{{ env.organism_images }}/;
+        try_files $uri =404;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+{% endif %}
     location / {
         root /opt/brc-analytics-{{ env.name }}/current;
         try_files $uri $uri.html $uri/ /index.html;
@@ -177,6 +186,21 @@ server {
         add_header Content-Type text/plain;
     }
 
+{% if env.organism_images is defined %}
+    # Per-organism images. Mirrored to a persistent host dir by the deploy/update
+    # playbooks rather than built into the static export -- they're gitignored in
+    # the app repo, and at ~360MB a copy per staged release adds up fast. Cached
+    # for a month, not a year: an image can be replaced under the same filename.
+    location /organism_image/ {
+        alias {{ organism_images_dir }}/{{ env.organism_images }}/;
+        try_files $uri =404;
+        expires 30d;
+        add_header Cache-Control "public";
+        add_header Strict-Transport-Security "max-age=63072000" always;
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
+{% endif %}
     # Static frontend
     location / {
         root /opt/brc-analytics-{{ env.name }}/current;

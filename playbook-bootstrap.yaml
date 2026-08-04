@@ -99,6 +99,20 @@
         label: "{{ item.name }}"
       when: brc_environments is defined
 
+    # Persistent organism-image mirrors, shared by every env naming the same
+    # image set. Owned by the service user so the (unprivileged) deploy/update
+    # sync can write into them; nginx serves them directly, so they deliberately
+    # live outside the per-env release trees.
+    - name: Create organism image directories
+      ansible.builtin.file:
+        path: "{{ organism_images_dir }}/{{ item }}"
+        state: directory
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0755"
+      loop: "{{ brc_environments | selectattr('organism_images', 'defined') | map(attribute='organism_images') | unique | list }}"
+      when: brc_environments is defined
+
     # Guarantee a valid 'current' release symlink before nginx ever roots at it.
     # On an already-deployed env, seed it from a copy of the live out/ (so it
     # keeps serving through the nginx re-render and survives out/ being moved
@@ -191,6 +205,16 @@
       loop: "{{ brc_environments }}"
       loop_control:
         label: "{{ item.name }}"
+      when: brc_environments is defined and ansible_selinux.status == "enabled"
+      changed_when: false
+      failed_when: false
+
+    # Label the mirror dirs before they have content, so images synced later
+    # inherit the type from their parent instead of needing a privileged relabel.
+    - name: Label organism image dirs as nginx content (SELinux)
+      ansible.builtin.command:
+        cmd: chcon -R -t httpd_sys_content_t {{ organism_images_dir }}/{{ item }}
+      loop: "{{ brc_environments | selectattr('organism_images', 'defined') | map(attribute='organism_images') | unique | list }}"
       when: brc_environments is defined and ansible_selinux.status == "enabled"
       changed_when: false
       failed_when: false

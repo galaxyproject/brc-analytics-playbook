@@ -35,6 +35,17 @@ nextjs_build_max_old_space_mb: 8192
 # (multi-env: set frontend_login_enabled on the brc_environments entry).
 frontend_login_enabled: false
 
+# Per-organism images (ga2 / GenomeArk). Roughly 360MB of JPEGs that live in a
+# public object store rather than in git, so they are mirrored to a persistent
+# host dir and served directly by nginx instead of riding along inside each
+# staged release. An environment opts in by setting `organism_images: <set>` on
+# its brc_environments entry; <set> names the subdirectory under
+# organism_images_dir, so environments sharing an image set share the mirror.
+organism_images_dir: /opt/brc-analytics-images
+organism_images_endpoint: https://js2.jetstream-cloud.org:8001
+organism_images_bucket: genomeark
+organism_images_prefix: images/
+
 # Frontend releases (zero-downtime publish, multi-env hosts)
 # Each build is staged into /opt/brc-analytics-<env>/releases/<sha-ts>/ and the
 # served `current` symlink is flipped atomically -- nginx never sees a

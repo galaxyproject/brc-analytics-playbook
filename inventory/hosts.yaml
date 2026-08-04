@@ -35,6 +35,7 @@ all:
               context: ga2
               build_script: "build-prod:ga2"
               catalog_build_script: "build-ga2-db"
+              organism_images: ga2
               # Skip cert acquisition; install cert manually then flip off
               ssl_skip: true
 
@@ -63,3 +64,4 @@ all:
               context: ga2
               build_script: "build-dev:ga2"
               catalog_build_script: "build-ga2-db"
+              organism_images: ga2

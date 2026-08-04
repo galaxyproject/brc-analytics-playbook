@@ -1,0 +1,40 @@
+# Sync the per-organism images for one environment.
+#
+# The ga2 (GenomeArk) catalog points every assembly at /organism_image/<species>.jpg,
+# but the app repo gitignores public/organism_image/ -- the ~360MB of JPEGs live in
+# a public object store instead, and a fresh checkout has none of them. Without
+# this step the site renders with every organism image broken.
+#
+# They are mirrored into a persistent host dir and served straight from nginx
+# rather than being dropped into public/ before the Next build: anything under
+# public/ gets copied into out/, which is then staged as an immutable release, so
+# a build-time fetch would cost releases_keep copies of the whole set (~1.4GB per
+# env) and re-download them on every deploy. The URL the frontend requests is the
+# same either way -- see the /organism_image/ location in nginx-multi-env.conf.j2.
+#
+# No-op for environments that don't set `organism_images`.
+---
+- name: "Sync organism images ({{ env.name }})"
+  ansible.builtin.script: >
+    files/sync-organism-images.py
+    --endpoint {{ organism_images_endpoint | quote }}
+    --bucket {{ organism_images_bucket | quote }}
+    --prefix {{ organism_images_prefix | quote }}
+    --dest {{ (organism_images_dir ~ '/' ~ env.organism_images) | quote }}
+  register: organism_images_sync
+  changed_when: "'downloaded=0 ' not in organism_images_sync.stdout"
+  when: env.organism_images is defined
+
+# New files inherit httpd_sys_content_t from the (bootstrap-labelled) parent dir,
+# so this is belt-and-braces for a dir that predates the labelling -- nginx 403s
+# on unlabelled content. Best-effort: the service user owns these files but isn't
+# guaranteed the policy privilege to relabel them.
+- name: "Label organism images as nginx content ({{ env.name }}, SELinux)"
+  ansible.builtin.command:
+    cmd: chcon -R -t httpd_sys_content_t {{ (organism_images_dir ~ '/' ~ env.organism_images) | quote }}
+  changed_when: false
+  failed_when: false
+  when:
+    - env.organism_images is defined
+    - organism_images_sync is changed
+    - ansible_selinux.status | default('disabled') == "enabled"
