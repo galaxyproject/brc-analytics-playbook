@@ -27,6 +27,29 @@
     brc_keycloak_client_id: "{{ env.keycloak_client_id | default('') }}"
     brc_keycloak_client_secret: "{{ env.keycloak_client_secret | default('') }}"
     app_db_password: "{{ env.app_db_password | default('') }}"
+    brc_galaxy_api_url: "{{ env.galaxy_api_url | default(brc_galaxy_api_url) }}"
+    brc_galaxy_api_key: "{{ env.galaxy_api_key | default('') }}"
+    brc_sra_mirror_host_path: "{{ env.sra_mirror_host_path | default('') }}"
+
+# Fail fast rather than after the build: Docker happily creates an empty
+# DIRECTORY at a bind-mount source that doesn't exist, which the backend then
+# rejects (it requires a file) and disables the SRA join -- silently, and
+# leaving a bogus directory behind. Only checked when a mirror is configured.
+- name: "Stat SRA mirror file ({{ env.name }})"
+  ansible.builtin.stat:
+    path: "{{ brc_sra_mirror_host_path }}"
+  register: sra_mirror_stat
+  when: brc_sra_mirror_host_path | length > 0
+
+- name: "Assert SRA mirror file exists ({{ env.name }})"
+  ansible.builtin.assert:
+    that: sra_mirror_stat.stat.isreg | default(false)
+    fail_msg: >-
+      sra_mirror_host_path is set to {{ brc_sra_mirror_host_path }} for
+      {{ env.name }} but that is not a regular file on this host. Put the
+      DuckDB mirror there, or drop sra_mirror_host_path from the inventory
+      entry to deploy without the SRA join.
+  when: brc_sra_mirror_host_path | length > 0
 
 - name: "Pull latest changes ({{ env.name }})"
   ansible.builtin.git:

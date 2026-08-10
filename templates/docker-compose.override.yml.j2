@@ -17,15 +17,34 @@ services:
       # Mount entire /etc/letsencrypt since live/ contains symlinks to archive/
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - {{ brc_deploy_dir }}/out:/usr/share/nginx/html:ro
+{% if brc_sra_mirror_host_path or brc_keycloak_client_id %}
+  backend:
+{% if brc_sra_mirror_host_path %}
+    # SRA-DuckDB mirror for the Logan/kmindex result join. The backend opens it
+    # with read_only=True, so a :ro bind mount is enough. Deliberately NOT
+    # inside the auth gate below -- the join has nothing to do with whether SSO
+    # is configured. No !override here: Compose merges volumes by container
+    # path, so the base file's ../catalog:/catalog:ro survives and this is
+    # appended.
+    #
+    # Bind mounts resolve to an inode at container create time. Replacing the
+    # mirror file on the host (e.g. swapping in a rebuilt one) leaves the
+    # running container on the old inode until it is recreated -- deploy and
+    # update both do a down/up, so a normal run picks the new file up.
+    volumes:
+      - "{{ brc_sra_mirror_host_path }}:{{ brc_sra_mirror_container_dir }}/{{ brc_sra_mirror_host_path | basename }}:ro"
+{% endif %}
+{% if brc_keycloak_client_id %}
+    depends_on:
+      brc-app-db:
+        condition: service_healthy
+{% endif %}
+{% endif %}
 {% if brc_keycloak_client_id %}
   # Persistent user-data store. Mirrors the app repo's docker-compose.auth.yml
   # brc-app-db, but stands alone here -- Keycloak runs externally in prod, so we
   # only add the database, not the whole auth stack. Gated on auth being
   # configured (brc_keycloak_client_id) since persistence requires identity.
-  backend:
-    depends_on:
-      brc-app-db:
-        condition: service_healthy
   brc-app-db:
     image: postgres:16-alpine
     environment:

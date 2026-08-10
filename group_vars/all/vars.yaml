@@ -86,6 +86,11 @@ brc_playbook_dir: /home/brc-admin/brc-analytics-playbook
 api_log_level: INFO
 api_rate_limit_requests: 100
 api_rate_limit_window: 60
+# Job submission is throttled separately from ordinary API traffic. One kmindex
+# query occupies a 96-core Vista node for up to 48h, so the ceiling that matters
+# is submissions per user, not request volume. Backend defaults are 5/3600s.
+api_submit_rate_limit_requests: 5
+api_submit_rate_limit_window: 3600
 
 # Sentry error tracking (DSN set per-environment)
 sentry_dsn: ""
@@ -132,3 +137,27 @@ app_db_backup_dir: /var/backups/brc-app-db
 app_db_backup_retention_days: 14
 # systemd OnCalendar expression (default: daily at 02:30, +/- 15min jitter).
 app_db_backup_schedule: "*-*-* 02:30:00"
+
+# Galaxy job execution (Logan / kmindex search).
+# The backend submits kmindex queries to Galaxy under a SERVICE ACCOUNT -- every
+# visitor's job lands in one shared Galaxy account rather than their own session
+# -- so the API key is a shared credential and lives in vault, referenced per
+# environment from `brc_environments` in inventory (same shape as the keycloak
+# client secret). An empty key leaves the Galaxy endpoints inert, which is the
+# default everywhere; the URL default matches the backend's own config.py.
+brc_galaxy_api_url: https://test.galaxyproject.org/api
+brc_galaxy_api_key: ""
+
+# SRA-DuckDB mirror. The Logan/kmindex result join reads run metadata out of a
+# DuckDB file that lives on the host (built externally, not shipped in the app
+# repo). It takes BOTH a read-only bind mount into the backend container and a
+# SRA_MIRROR_PATH pointing at the in-container path -- set only one and the
+# backend logs "SRA mirror service disabled" and the join is silently off.
+#
+# Set brc_sra_mirror_host_path (per environment, via `sra_mirror_host_path` on
+# the brc_environments entry) to the HOST path of the .duckdb file; the compose
+# override mounts it under brc_sra_mirror_container_dir and api.env.j2 derives
+# SRA_MIRROR_PATH from the same two values, so they cannot drift. Empty host
+# path = no mount, no env var, join disabled.
+brc_sra_mirror_host_path: ""
+brc_sra_mirror_container_dir: /sra
