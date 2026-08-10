@@ -166,7 +166,7 @@
 # the catalog output files are committed to the repo and pulled with git
 - name: "Check for catalog source changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- catalog/source/
+    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- {{ env.catalog_source_dir | default('catalog/source/') }}
     chdir: "{{ env_deploy_dir }}"
   register: catalog_changes
   changed_when: false
@@ -179,9 +179,15 @@
     chdir: "{{ env_deploy_dir }}"
   when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
+# sites/ and packages/ are the per-site Next apps (sites/ga2) and the shared
+# workspace they both import; a ga2-only change now lands entirely under those
+# and would otherwise read as "no frontend changes" -- freezing the env on its
+# current release. The list is deliberately not split per environment: a
+# root-only change triggering a redundant ga2 rebuild costs a build, whereas
+# a missed path silently stops deploying.
 - name: "Check for frontend source changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- app/ components/ pages/ public/ site-config/ catalog/ next.config.js next.config.mjs package.json
+    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- app/ components/ pages/ public/ sites/ packages/ site-config/ catalog/ next.config.js next.config.mjs package.json
     chdir: "{{ env_deploy_dir }}"
   register: frontend_changes
   changed_when: false
@@ -220,16 +226,19 @@
   ansible.builtin.include_tasks: tasks/organism-images.yaml
   when: not (backend_only | default(false))
 
-# Stage the rebuilt out/ as an immutable release. mv is atomic and preserves the
-# SELinux label out/ inherited from the env dir -- no privileged relabel needed.
+# Stage the rebuilt export dir as an immutable release. Its location is per
+# environment (frontend_out_dir): the root app exports to out/, a standalone
+# site app like ga2 to sites/ga2/out. mv is atomic and preserves the label the
+# export dir inherited down from the (chcon'd) env dir -- no privileged relabel.
 - name: "Stage frontend release ({{ env.name }})"
   ansible.builtin.shell: |
     set -euo pipefail
+    out_dir={{ (env.frontend_out_dir | default('out')) | quote }}
     sha="$(git rev-parse --short HEAD)"
     rel="releases/${sha}-$(date +%Y%m%d%H%M%S)"
     mkdir -p releases
     rm -rf "$rel"
-    mv out "$rel"
+    mv "$out_dir" "$rel"
     echo "$rel" > .staged-release
   args:
     chdir: "{{ env_deploy_dir }}"

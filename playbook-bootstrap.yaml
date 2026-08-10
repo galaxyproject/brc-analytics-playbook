@@ -140,11 +140,12 @@
     - name: Ensure a current release symlink exists per env
       ansible.builtin.shell: |
         set -euo pipefail
+        out_dir={{ (item.frontend_out_dir | default('out')) | quote }}
         mkdir -p releases
         if [ -e current ]; then exit 0; fi
-        if [ -d out ]; then
+        if [ -d "$out_dir" ]; then
           rm -rf releases/_adopt
-          cp -a out releases/_adopt
+          cp -a "$out_dir" releases/_adopt
           ln -sfn releases/_adopt current
         else
           mkdir -p releases/_placeholder

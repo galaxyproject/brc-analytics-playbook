@@ -35,6 +35,11 @@ all:
               context: ga2
               build_script: "build-prod:ga2"
               catalog_build_script: "build-ga2-db"
+              # ga2 is a standalone Next app rooted at sites/ga2, so
+              # `next build sites/ga2` exports to sites/ga2/out, not the repo
+              # root, and its catalog source lives under catalog/ga2/.
+              frontend_out_dir: sites/ga2/out
+              catalog_source_dir: catalog/ga2/source/
               organism_images: ga2
               # Skip cert acquisition; install cert manually then flip off
               ssl_skip: true
@@ -84,4 +89,9 @@ all:
               context: ga2
               build_script: "build-dev:ga2"
               catalog_build_script: "build-ga2-db"
+              # ga2 is a standalone Next app rooted at sites/ga2, so
+              # `next build sites/ga2` exports to sites/ga2/out, not the repo
+              # root, and its catalog source lives under catalog/ga2/.
+              frontend_out_dir: sites/ga2/out
+              catalog_source_dir: catalog/ga2/source/
               organism_images: ga2

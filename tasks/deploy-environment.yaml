@@ -104,18 +104,21 @@
   ansible.builtin.include_tasks: tasks/organism-images.yaml
   when: not (backend_only | default(false))
 
-# Stage the freshly-built out/ as an immutable release. A same-filesystem mv is
-# instant and preserves the SELinux label out/ inherited from the (chcon'd) env
-# dir, so no privileged relabel is needed. .staged-release records what the
-# publish step should flip to (also read back by deploy_mode=publish).
+# Stage the freshly-built export dir as an immutable release. Its location
+# is per environment (frontend_out_dir): the root app exports to out/, a
+# standalone site app like ga2 to sites/ga2/out. A same-filesystem mv is
+# instant and preserves the SELinux label it inherited down from the (chcon'd)
+# env dir, so no privileged relabel is needed. .staged-release records what
+# the publish step should flip to (also read back by deploy_mode=publish).
 - name: "Stage frontend release ({{ env.name }})"
   ansible.builtin.shell: |
     set -euo pipefail
+    out_dir={{ (env.frontend_out_dir | default('out')) | quote }}
     sha="$(git rev-parse --short HEAD)"
     rel="releases/${sha}-$(date +%Y%m%d%H%M%S)"
     mkdir -p releases
     rm -rf "$rel"
-    mv out "$rel"
+    mv "$out_dir" "$rel"
     echo "$rel" > .staged-release
   args:
     chdir: "{{ env_deploy_dir }}"
