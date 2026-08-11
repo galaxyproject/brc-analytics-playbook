@@ -55,14 +55,22 @@ all:
           brc_environments:
             - name: brc-dev
               domain: dev.brc-analytics.org
-              # PLACEHOLDER -- replace with the real Logan/kmindex branch once it
-              # is pushed to galaxyproject/brc-analytics. It must be set HERE and
-              # not via `-e brc_repo_branch=...`: brc-auto-update.sh.j2 bakes
+              # Logan/kmindex is PARKED until its app branch is pushed to
+              # galaxyproject/brc-analytics -- `logan-search` currently only
+              # exists on the dannon fork, and brc_repo_url points at
+              # galaxyproject, so there is nothing here to fetch. Left on main
+              # so this entry stays deployable and, more importantly, so the
+              # 3-hourly auto-update timer does not fail on it: the generated
+              # brc-auto-update.sh runs playbook-update.yaml with no env_filter,
+              # so one broken environment stops ga2-dev updating too.
+              #
+              # To turn Logan on: push the app branch, set it here (NOT via
+              # `-e brc_repo_branch=...` -- brc-auto-update.sh.j2 bakes
               # `{{ env.branch }}` in per environment, so an -e override leaves
-              # the generated script still watching origin/main, and the 3-hourly
-              # timer would see main != HEAD and revert the deploy. Re-run
-              # `make auto-update` after changing this so the script regenerates.
-              branch: BRANCH_TBD
+              # the generated script watching origin/main and the timer reverts
+              # the deploy), re-run `make auto-update`, then un-park the three
+              # settings below.
+              branch: main
               backend_port: 8000
               context: brc
               # Standalone Next app under sites/brc-analytics; the root Next
@@ -76,19 +84,20 @@ all:
               app_db_password: "{{ vault_app_db_password_dev }}"
               # Show the Galaxy SSO login UI on dev (baked into the frontend build)
               frontend_login_enabled: true
-              # Logan / kmindex search. The key is a SERVICE ACCOUNT credential
-              # (all visitors' jobs land in one Galaxy account), so it lives in
-              # vault -- add vault_galaxy_api_key_dev with `make vault-edit`
-              # BEFORE the next dev run or the play fails on an undefined var.
-              # CONFIRM which Galaxy should actually run these jobs; this is the
-              # backend's own default, not a decision.
-              galaxy_api_url: https://test.galaxyproject.org/api
-              galaxy_api_key: "{{ vault_galaxy_api_key_dev }}"
-              # HOST path to the SRA-DuckDB mirror, bind mounted read-only into
-              # the backend container (see brc_sra_mirror_* in group_vars). The
-              # file is being rebuilt slim, so this is a variable, not a fixed
-              # size assumption -- PLACEHOLDER, confirm where it lands on the VM.
-              sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
+              # --- Logan/kmindex, PARKED (see the branch note above) ---
+              # All three reference things that do not exist yet, and each one
+              # fails the play for this host on its own: the vault key is not in
+              # group_vars/all/vault.yaml, and sra_mirror_host_path is asserted
+              # to be a real file before the build runs. The plumbing they feed
+              # (api.env.j2, the read-only bind mount, the enablement gate) is
+              # already in place and inert without them -- un-comment all three
+              # together once the key is added and the mirror is on the VM.
+              #
+              # CONFIRM which Galaxy should run these jobs before enabling; the
+              # URL below is the backend's own default, not a decision.
+              # galaxy_api_url: https://test.galaxyproject.org/api
+              # galaxy_api_key: "{{ vault_galaxy_api_key_dev }}"
+              # sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
             - name: ga2-dev
               domain: dev.genomeark2.org
               branch: main
