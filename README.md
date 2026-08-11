@@ -186,23 +186,24 @@ Then add the output to your vault file and set `ssl_mode: vault`.
 
 ### Per-site Next apps (`frontend_out_dir`)
 
-The app repo builds every site as its own standalone Next app under `sites/`: `sites/brc-analytics` and `sites/ga2`. The root Next app is gone -- nothing exports to a repo-root `out/` any more. Each build runs `next build sites/<site>`, so its static export lands in `sites/<site>/out`, and the deploy staging step (`mv <export dir> releases/<sha>-<ts>`) has to be told which one to move or it fails with `mv: cannot stat 'out'` after an otherwise-successful build.
+The app repo is mid-migration to one standalone Next app per site under `sites/`, and the two deploy branches are on opposite sides of it:
 
-The npm script names are per-site too (`build-dev:brc`, `build-prod:ga2`, ...). A stale name fails loudly with `Missing script`, which is the friendlier half of this -- the export dir fails quietly.
+- **`main`** (the dev environments) has the split. Builds run `next build sites/<site>`, so the static export lands in `sites/brc-analytics/out` or `sites/ga2/out`, and the npm scripts are named `build-<env>:<site>`.
+- **`production`** (the prod environments) is still pre-split. The root Next app is intact, both sites build with a plain `next build`, and the export lands in a repo-root `out/`.
 
-Each environment declares both in inventory:
+So the export dir is per environment, not global. The staging step is `mv <export dir> releases/<sha>-<ts>`, which fails with `mv: cannot stat 'out'` after an otherwise-successful build if it's pointed at the wrong one:
 
 ```yaml
-- name: brc-dev
-  build_script: "build-dev:brc"          # defaults to brc_build_script
+- name: brc-dev            # tracks main -- split
   frontend_out_dir: sites/brc-analytics/out
-- name: ga2-dev
-  build_script: "build-dev:ga2"
-  frontend_out_dir: sites/ga2/out
+- name: ga2-prod           # tracks production -- pre-split
+  frontend_out_dir: out
   catalog_source_dir: catalog/ga2/source/   # defaults to catalog/source/
 ```
 
-Frontend change detection diffs `sites/`, `packages/`, `site-config/`, `catalog/`, `scripts/`, `package.json` and `tsconfig.json`. Keep that list honest when the app repo moves things: an unmatched pathspec is not an error, it is silently empty, and the task's `failed_when: false` turns that into "no frontend changes" -- so a wrong path doesn't fail the deploy, it just quietly stops deploying while every run still reports success.
+The build script name is coupled to the same thing, via `brc_build_script` (defaulting to the prod/pre-split `build:prod`, overridden to `build-dev:brc` in `group_vars/development`) or a per-env `build_script`. **When the next release promotes `main` to `production`, the prod `frontend_out_dir` values and `brc_build_script` have to flip in the same change**, or the first prod deploy afterwards fails on `Missing script`.
+
+Frontend change detection deliberately watches the union of both layouts (`app/`, `pages/`, `public/`, `next.config.mjs` *and* `sites/`, `packages/`, plus `site-config/`, `catalog/`, `scripts/`, `package.json`, `tsconfig.json`). An unmatched pathspec is not an error, it is silently empty, and the task's `failed_when: false` turns that into "no frontend changes" -- so a stale path doesn't fail a deploy, it quietly stops doing one while every run still reports success. Keep the union honest in both directions when the app repo moves things.
 
 ### Organism Images (ga2 / GenomeArk)
 

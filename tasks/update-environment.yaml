@@ -179,16 +179,20 @@
     chdir: "{{ env_deploy_dir }}"
   when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
-# Every site is a standalone Next app under sites/ now, sharing packages/ --
-# the old root app dirs (app/, components/, pages/, public/, next.config.mjs)
-# no longer exist, so watching them detects nothing. An unmatched pathspec is
-# not an error, it is silently empty, and failed_when:false turns that into
-# "no frontend changes" -- no rebuild, no complaint, env frozen on its current
-# release. Deliberately not split per environment: a brc-only change forcing a
-# redundant ga2 rebuild costs one build, a missed path stops deploying.
+# The union of BOTH app layouts, on purpose. The dev environments track `main`,
+# where every site is a standalone Next app under sites/ sharing packages/; the
+# prod environments track `production`, which is still pre-split and keeps the
+# frontend in app/, pages/, public/ and the root next.config.mjs. An unmatched
+# pathspec is not an error here, it is silently empty, so carrying both costs
+# nothing and dropping either half would be invisible: failed_when:false turns
+# "pathspec matched nothing" into "no frontend changes" -- no rebuild, no
+# complaint, environment frozen on its current release while every run still
+# reports success. Same reason it isn't split per environment: a brc-only change
+# forcing a redundant ga2 rebuild costs one build, a missed path stops
+# deploying.
 - name: "Check for frontend source changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- sites/ packages/ site-config/ catalog/ scripts/ package.json tsconfig.json
+    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- app/ components/ pages/ public/ sites/ packages/ site-config/ catalog/ scripts/ next.config.mjs package.json tsconfig.json
     chdir: "{{ env_deploy_dir }}"
   register: frontend_changes
   changed_when: false
