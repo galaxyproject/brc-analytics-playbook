@@ -199,6 +199,52 @@ Bootstrap creates and SELinux-labels `/opt/brc-analytics-images/<set>/`; deploy 
 
 They stay outside the per-env release trees on purpose. Anything under `public/` is copied into `out/` and staged as an immutable release, so fetching them at build time would cost `releases_keep` copies — roughly 1.4GB per environment — and re-download the set on every deploy. Bucket coordinates live in `group_vars/all/vars.yaml` (`organism_images_endpoint`, `organism_images_bucket`, `organism_images_prefix`).
 
+### SRA Mirror (Logan / kmindex search)
+
+The Logan search joins its kmindex hits against a local mirror of SRA run metadata -- a DuckDB file built externally from the public NCBI parquet. It is not in either repo and nothing in this playbook builds or fetches it: the file is put on the host by hand, and the playbook only wires it up.
+
+An environment opts in from inventory:
+
+```yaml
+- name: brc-dev
+  galaxy_api_key: "{{ vault_galaxy_api_key_dev }}"   # service account, enables submission
+  sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
+```
+
+Bootstrap creates the parent directory owned by the service user. Deploy and update assert the file is a regular file, bind mount it read-only into the backend container under `brc_sra_mirror_container_dir`, and derive `SRA_MIRROR_PATH` from the same two variables so the env var and the mount cannot drift apart. Leave `sra_mirror_host_path` unset and none of that is emitted -- the backend then falls back to its own defaults and the join is simply off, which is the state of every environment except dev.
+
+The assert exists because Docker will happily create an empty *directory* at a bind-mount source that does not exist. The backend requires a file, so it would log at INFO, disable the SRA tools, and serve an inert page while leaving a bogus directory behind. Failing the run is better.
+
+Putting a mirror in place, or replacing one with a rebuild:
+
+```bash
+# 1. Copy it up. You SSH as your own login, and the directory is owned by the
+#    service user, so stage it in your home dir and move it into place.
+scp sra-mirror.duckdb brc-analytics-dev.tacc.utexas.edu:~/
+sudo install -o brc-admin -g brc-admin -m 0644 \
+  ~/sra-mirror.duckdb /opt/brc-analytics-data/sra-mirror.duckdb
+
+# 2. Recreate the backend so it picks up the new file. Run it from the backend
+#    directory and do NOT pass -f: Compose only auto-loads the generated
+#    docker-compose.override.yml under default file discovery, and that
+#    override is what carries both the mirror mount and the 127.0.0.1 port
+#    binding. Naming the base file explicitly silently drops both.
+cd /opt/brc-analytics-brc-dev/backend
+sudo -u brc-admin docker compose -p brc-analytics-brc-dev up -d --force-recreate backend
+```
+
+Step 2 is not optional and is easy to get wrong. A bind mount resolves to an inode when the container is created, so a container that is already running keeps reading the *old* file after you replace it -- the mirror looks updated on the host while the API still serves what it started with. Two things that look like they would fix this do not: `make restart` runs `docker compose restart`, which restarts the process without recreating the container (mounts survive), and it is also still single-environment, pointed at `brc_backend_dir` rather than any `/opt/brc-analytics-<env>` project. And `make update-brc-dev` only recreates the backend when the app source, `api/.env`, or the compose override changed -- swapping a data file changes none of those, so it is a no-op here. A full `make deploy-brc-dev` does a `down`/`up` and works, but rebuilds everything to achieve a container recreate.
+
+Confirm the mirror is actually live:
+
+```bash
+cd /opt/brc-analytics-brc-dev/backend
+sudo -u brc-admin docker compose -p brc-analytics-brc-dev exec backend ls -l /sra/
+sudo -u brc-admin docker compose -p brc-analytics-brc-dev logs backend | grep -i "sra mirror"
+```
+
+An "SRA mirror service disabled" line means `SRA_MIRROR_PATH` is empty or the path inside the container is not a file.
+
 ### Secrets (Ansible Vault)
 
 Sensitive values are stored encrypted in `group_vars/*/vault.yaml`.

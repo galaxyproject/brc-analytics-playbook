@@ -113,6 +113,23 @@
       loop: "{{ brc_environments | selectattr('organism_images', 'defined') | map(attribute='organism_images') | unique | list }}"
       when: brc_environments is defined
 
+    # Parent dir for the SRA-DuckDB mirror, one per distinct configured path.
+    # Owned by the service user so the file can be replaced (a rebuilt mirror,
+    # a refresh) without escalation. The mirror itself is NOT created here --
+    # it is built externally and must be put in place; deploy/update assert it
+    # exists rather than papering over a missing one. Deliberately outside the
+    # per-env release trees so a mirror survives deploys and can be shared by
+    # environments pointing at the same path.
+    - name: Create SRA mirror directories
+      ansible.builtin.file:
+        path: "{{ item | dirname }}"
+        state: directory
+        owner: "{{ brc_user }}"
+        group: "{{ brc_group }}"
+        mode: "0755"
+      loop: "{{ brc_environments | selectattr('sra_mirror_host_path', 'defined') | map(attribute='sra_mirror_host_path') | unique | list }}"
+      when: brc_environments is defined
+
     # Guarantee a valid 'current' release symlink before nginx ever roots at it.
     # On an already-deployed env, seed it from a copy of the live out/ (so it
     # keeps serving through the nginx re-render and survives out/ being moved
