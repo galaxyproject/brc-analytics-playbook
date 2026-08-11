@@ -216,7 +216,18 @@ An environment opts in from inventory:
   organism_images: ga2   # names the mirror dir under organism_images_dir
 ```
 
-Bootstrap creates and SELinux-labels `/opt/brc-analytics-images/<set>/`; deploy and update mirror the bucket into it (skipping files already present at the same size, so a no-op run is one listing request); host nginx serves that directory at `/organism_image/`.
+Bootstrap creates and SELinux-labels `/opt/brc-analytics-images/<set>/`; host nginx serves that directory at `/organism_image/`.
+
+Refreshing the corpus is its own command, not part of a deploy:
+
+```bash
+make fetch-images                # every env on this host that opts in
+make fetch-images ENV=ga2-dev    # just one
+```
+
+It runs on the deploy path too, so a first stand-up comes up complete, but **not** on the update path. The corpus tracks the bucket on its own schedule -- new species appear upstream for reasons unrelated to any code change -- so tying it to deploys would mean a new image needs a deploy to land, and every deploy re-walks the whole set for nothing. It also has to stay outside the release trees: releases are immutable and rollback-able, and if the images lived inside them, rolling back to an older release would roll the corpus back with it and drop every species added since.
+
+The sync is incremental (objects already present at the same size are skipped, so a no-op costs one listing request per 1000 objects) and writes via a temp file plus atomic rename, so it's safe to run against a live site.
 
 They stay outside the per-env release trees on purpose. Anything under `public/` is copied into `out/` and staged as an immutable release, so fetching them at build time would cost `releases_keep` copies — roughly 1.4GB per environment — and re-download the set on every deploy. Bucket coordinates live in `group_vars/all/vars.yaml` (`organism_images_endpoint`, `organism_images_bucket`, `organism_images_prefix`).
 

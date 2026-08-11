@@ -28,7 +28,7 @@ define with-sudo
 endef
 
 .PHONY: setup bootstrap deploy deploy-brc-prod deploy-brc-prod-build deploy-brc-prod-publish deploy-ga2-prod deploy-brc-dev deploy-brc-dev-build deploy-brc-dev-publish deploy-ga2-dev update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev rebuild auto-update status restart
-.PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help
+.PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help fetch-images
 
 # --- Setup ---
 
@@ -107,6 +107,16 @@ rebuild:
 auto-update:
 	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-auto-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
+# --- Images ---
+
+# Refresh the organism image corpus from the bucket. Deliberately separate from
+# deploy/update: the corpus tracks the bucket on its own schedule, and it lives
+# outside the release trees so a rollback can't take it with it.
+#   make fetch-images              # every env on this host that opts in
+#   make fetch-images ENV=ga2-dev  # just one
+fetch-images:
+	$(ANSIBLE_PLAYBOOK) playbook-fetch-images.yaml --limit=$(HOSTNAME) $(if $(ENV),-e env_filter=$(ENV)) $(EXTRA_ARGS)
+
 # --- Status ---
 
 status:
@@ -184,6 +194,7 @@ help:
 	@echo "  deploy-brc-{prod,dev}-publish - Atomic swap to the staged release + start backend"
 	@echo "  rebuild       - Force full rebuild and restart"
 	@echo "  auto-update   - Install/refresh auto-update systemd timer"
+	@echo "  fetch-images  - Refresh organism images from the bucket (ENV=<name> to scope)"
 	@echo "  status        - Check service status"
 	@echo "  restart       - Restart services"
 	@echo "  cert-renew    - Force SSL certificate renewal"

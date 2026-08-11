@@ -1,0 +1,65 @@
+# Fetch Images Playbook -- refresh the per-organism image corpus from the bucket.
+#
+# Deliberately NOT part of deploy or update. The corpus tracks the bucket, not
+# the git checkout: images are added and replaced upstream on their own schedule,
+# for reasons that have nothing to do with a code change. Binding the two means
+# a new image can't reach the site without a deploy, and every deploy redoes work
+# that didn't change.
+#
+# It also has to stay out of the release trees. Releases are immutable and
+# rollback-able; if the images lived inside them, rolling back to an older
+# release would roll the corpus back with it and drop every species added since.
+# So this mirrors into a persistent host dir (organism_images_dir) that nginx
+# serves directly, and nothing here touches a release.
+#
+# Usage:
+#   make fetch-images                    # every env on the host that opts in
+#   make fetch-images ENV=ga2-dev        # just one
+#
+# Safe to run any time, including against a live site -- the sync is incremental
+# (objects already present at the same size are skipped) and writes each file via
+# a temp file + atomic rename, so a partial run never exposes a truncated image.
+---
+- name: Fetch organism images
+  hosts: all
+
+  tasks:
+    - name: Fail early when the host has no environments defined
+      ansible.builtin.fail:
+        msg: >-
+          No brc_environments on this host. The image corpus is per-environment
+          (keyed on `organism_images`), so there is nothing to fetch.
+      when: brc_environments is not defined
+
+    - name: Fetch images for each environment
+      ansible.builtin.include_tasks: tasks/organism-images.yaml
+      loop: "{{ brc_environments }}"
+      loop_control:
+        loop_var: env
+        label: "{{ env.name }}"
+      when:
+        - brc_environments is defined
+        - env_filter is not defined or env.name == env_filter
+
+    # Resolve the reported list in a fact rather than inline in the message --
+    # a template error in a debug task fails the play, and this is the last
+    # thing anyone wants blowing up after the images already synced fine.
+    - name: Resolve which environments were in scope
+      ansible.builtin.set_fact:
+        synced_envs: >-
+          {{ brc_environments
+             | selectattr('organism_images', 'defined')
+             | map(attribute='name')
+             | select('equalto', env_filter) | list
+             if env_filter is defined
+             else brc_environments
+                  | selectattr('organism_images', 'defined')
+                  | map(attribute='name') | list }}
+      when: brc_environments is defined
+
+    - name: Report what was synced
+      ansible.builtin.debug:
+        msg: >-
+          Image sync complete for: {{ synced_envs | join(', ') | default('(none)', true) }}.
+          Environments without `organism_images` are skipped.
+      when: brc_environments is defined

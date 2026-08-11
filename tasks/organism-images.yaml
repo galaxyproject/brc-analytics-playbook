@@ -12,6 +12,12 @@
 # env) and re-download them on every deploy. The URL the frontend requests is the
 # same either way -- see the /organism_image/ location in nginx-multi-env.conf.j2.
 #
+# Callers: `make fetch-images` (playbook-fetch-images.yaml), which is how the
+# corpus is normally refreshed, and deploy-environment.yaml, so a fresh
+# environment stands up complete. Deliberately NOT on the update path -- the
+# corpus tracks the bucket's schedule, not the git checkout's, and it stays out
+# of the release trees so a rollback can't take the images with it.
+#
 # No-op for environments that don't set `organism_images`.
 ---
 - name: "Sync organism images ({{ env.name }})"

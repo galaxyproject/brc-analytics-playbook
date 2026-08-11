@@ -97,9 +97,12 @@
     - not (backend_only | default(false))
     - deploy_mode | default('full') != 'publish'
 
-# Independent of the build (nginx serves these straight from a persistent dir),
-# so it runs in publish mode too -- a publish-only cutover on a fresh host still
-# needs the images in place.
+# Kept on the deploy path, unlike update, so a first stand-up of an environment
+# comes up complete instead of rendering every organism image broken until
+# someone remembers `make fetch-images`. Independent of the build (nginx serves
+# these from a persistent dir), so it runs in publish mode too -- a publish-only
+# cutover on a fresh host still needs the images. Re-running deploy is cheap:
+# the sync skips objects already present at the same size.
 - name: "Sync organism images ({{ env.name }})"
   ansible.builtin.include_tasks: tasks/organism-images.yaml
   when: not (backend_only | default(false))
