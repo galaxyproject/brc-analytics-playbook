@@ -6,8 +6,8 @@ brc_environment: development
 # Track main branch in development
 brc_repo_branch: main
 
-# Use dev build script for frontend builds
-brc_build_script: "build:dev"
+# Use dev build script for frontend builds (see group_vars/all for naming)
+brc_build_script: "build-dev:brc"
 
 # Auto-update from main every 3 hours (00:00, 03:00, 06:00, ...)
 brc_auto_update: true

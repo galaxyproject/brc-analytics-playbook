@@ -179,15 +179,16 @@
     chdir: "{{ env_deploy_dir }}"
   when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
-# sites/ and packages/ are the per-site Next apps (sites/ga2) and the shared
-# workspace they both import; a ga2-only change now lands entirely under those
-# and would otherwise read as "no frontend changes" -- freezing the env on its
-# current release. The list is deliberately not split per environment: a
-# root-only change triggering a redundant ga2 rebuild costs a build, whereas
-# a missed path silently stops deploying.
+# Every site is a standalone Next app under sites/ now, sharing packages/ --
+# the old root app dirs (app/, components/, pages/, public/, next.config.mjs)
+# no longer exist, so watching them detects nothing. An unmatched pathspec is
+# not an error, it is silently empty, and failed_when:false turns that into
+# "no frontend changes" -- no rebuild, no complaint, env frozen on its current
+# release. Deliberately not split per environment: a brc-only change forcing a
+# redundant ga2 rebuild costs one build, a missed path stops deploying.
 - name: "Check for frontend source changes ({{ env.name }})"
   ansible.builtin.command:
-    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- app/ components/ pages/ public/ sites/ packages/ site-config/ catalog/ next.config.js next.config.mjs package.json
+    cmd: git diff --name-only {{ deployed_frontend_commit }} HEAD -- sites/ packages/ site-config/ catalog/ scripts/ package.json tsconfig.json
     chdir: "{{ env_deploy_dir }}"
   register: frontend_changes
   changed_when: false

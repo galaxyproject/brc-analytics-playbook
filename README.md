@@ -186,18 +186,23 @@ Then add the output to your vault file and set `ssl_mode: vault`.
 
 ### Per-site Next apps (`frontend_out_dir`)
 
-The app repo hosts more than one site out of a single checkout. `brc-analytics` still builds at the repo root, but `ga2` is a standalone Next app rooted at `sites/ga2` -- its build runs `next build sites/ga2`, so the static export lands in `sites/ga2/out`, not `out/`. The deploy staging step (`mv <export dir> releases/<sha>-<ts>`) has to be told which one to move, or it fails with `mv: cannot stat 'out'` after an otherwise-successful build.
+The app repo builds every site as its own standalone Next app under `sites/`: `sites/brc-analytics` and `sites/ga2`. The root Next app is gone -- nothing exports to a repo-root `out/` any more. Each build runs `next build sites/<site>`, so its static export lands in `sites/<site>/out`, and the deploy staging step (`mv <export dir> releases/<sha>-<ts>`) has to be told which one to move or it fails with `mv: cannot stat 'out'` after an otherwise-successful build.
 
-An environment declares it in inventory, defaulting to `out` when absent:
+The npm script names are per-site too (`build-dev:brc`, `build-prod:ga2`, ...). A stale name fails loudly with `Missing script`, which is the friendlier half of this -- the export dir fails quietly.
+
+Each environment declares both in inventory:
 
 ```yaml
+- name: brc-dev
+  build_script: "build-dev:brc"          # defaults to brc_build_script
+  frontend_out_dir: sites/brc-analytics/out
 - name: ga2-dev
   build_script: "build-dev:ga2"
-  frontend_out_dir: sites/ga2/out       # where `next build` exports
-  catalog_source_dir: catalog/ga2/source/   # what a catalog rebuild watches
+  frontend_out_dir: sites/ga2/out
+  catalog_source_dir: catalog/ga2/source/   # defaults to catalog/source/
 ```
 
-Frontend change detection diffs `sites/` and `packages/` alongside the root app dirs, so a change confined to one site (or to the shared workspace both import) still triggers a rebuild. If another site moves under `sites/`, set `frontend_out_dir` for its environments at the same time -- a missed one doesn't fail loudly, it just stops deploying.
+Frontend change detection diffs `sites/`, `packages/`, `site-config/`, `catalog/`, `scripts/`, `package.json` and `tsconfig.json`. Keep that list honest when the app repo moves things: an unmatched pathspec is not an error, it is silently empty, and the task's `failed_when: false` turns that into "no frontend changes" -- so a wrong path doesn't fail the deploy, it just quietly stops deploying while every run still reports success.
 
 ### Organism Images (ga2 / GenomeArk)
 

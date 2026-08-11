@@ -6,8 +6,10 @@ brc_app_name: brc-analytics
 brc_repo_url: https://github.com/galaxyproject/brc-analytics.git
 brc_repo_branch: main
 
-# npm build script (build:prod or build:dev)
-brc_build_script: "build:prod"
+# npm build script for the default (brc) site. Every site is a standalone Next
+# app under sites/ now, and the scripts are named build-<env>:<site>; a stale
+# name here fails the build outright with "Missing script".
+brc_build_script: "build-prod:brc"
 
 # Paths
 brc_deploy_dir: /opt/brc-analytics
