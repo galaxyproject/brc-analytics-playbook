@@ -28,7 +28,7 @@ define with-sudo
 endef
 
 .PHONY: setup bootstrap deploy deploy-brc-prod deploy-brc-prod-build deploy-brc-prod-publish deploy-ga2-prod deploy-brc-dev deploy-brc-dev-build deploy-brc-dev-publish deploy-ga2-dev update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev rebuild auto-update status restart
-.PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help fetch-images
+.PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help fetch-images check-envs
 
 # --- Setup ---
 
@@ -106,6 +106,27 @@ rebuild:
 
 auto-update:
 	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-auto-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
+
+# --- Validation ---
+
+# Check every environment's build settings against the app-repo branch it
+# actually tracks. Catches the class of breakage where the app repo moves
+# (renamed build scripts, relocated static export, restructured source dirs)
+# and the inventory still describes the old shape -- including the silent one,
+# where a stale change-detection pathspec makes updates stop deploying without
+# ever failing a run. Needs a local checkout of the app repo with remotes for
+# whichever forks the branches live on; override with APP_REPO=<path>.
+APP_REPO ?= $(HOME)/work/brc-analytics
+
+check-envs:
+	@for host in $$($(VENV)/bin/ansible-inventory -i inventory/hosts.yaml --list 2>/dev/null \
+	    | python3 -c 'import json,sys; d=json.load(sys.stdin); print(" ".join(sorted(d.get("_meta",{}).get("hostvars",{}))))'); do \
+	  echo "=== $$host"; \
+	  $(VENV)/bin/ansible-inventory -i inventory/hosts.yaml --host $$host 2>/dev/null \
+	    | python3 files/check-environments.py "$(APP_REPO)" \
+	        "app/ components/ pages/ public/ sites/ packages/ site-config/ catalog/ scripts/ next.config.mjs package.json tsconfig.json" \
+	    || exit 1; \
+	done
 
 # --- Images ---
 
@@ -195,6 +216,7 @@ help:
 	@echo "  rebuild       - Force full rebuild and restart"
 	@echo "  auto-update   - Install/refresh auto-update systemd timer"
 	@echo "  fetch-images  - Refresh organism images from the bucket (ENV=<name> to scope)"
+	@echo "  check-envs    - Verify each env's build settings against the branch it tracks"
 	@echo "  status        - Check service status"
 	@echo "  restart       - Restart services"
 	@echo "  cert-renew    - Force SSL certificate renewal"

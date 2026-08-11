@@ -55,26 +55,25 @@ all:
           brc_environments:
             - name: brc-dev
               domain: dev.brc-analytics.org
-              # Logan/kmindex is PARKED until its app branch is pushed to
-              # galaxyproject/brc-analytics -- `logan-search` currently only
-              # exists on the dannon fork, and brc_repo_url points at
-              # galaxyproject, so there is nothing here to fetch. Left on main
-              # so this entry stays deployable and, more importantly, so the
-              # 3-hourly auto-update timer does not fail on it: the generated
-              # brc-auto-update.sh runs playbook-update.yaml with no env_filter,
-              # so one broken environment stops ga2-dev updating too.
+              # Logan/kmindex preview. `logan-search` lives on the dannon
+              # fork, not galaxyproject, so this entry overrides the repo it
+              # pulls from -- the rest of the host still tracks galaxyproject.
+              # Revert repo_url + branch (and the build settings below) once the
+              # feature merges upstream.
               #
-              # To turn Logan on: push the app branch, set it here (NOT via
-              # `-e brc_repo_branch=...` -- brc-auto-update.sh.j2 bakes
-              # `{{ env.branch }}` in per environment, so an -e override leaves
-              # the generated script watching origin/main and the timer reverts
-              # the deploy), re-run `make auto-update`, then un-park the three
-              # settings below.
-              branch: main
+              # Set the branch HERE, never via `-e brc_repo_branch=...`:
+              # brc-auto-update.sh.j2 bakes `{{ env.branch }}` in per
+              # environment, so an -e override leaves the generated script
+              # watching origin/main, and the 3-hourly timer would see a
+              # mismatch and revert the deploy. Re-run `make auto-update` after
+              # changing it so the script regenerates.
+              repo_url: https://github.com/dannon/brc-analytics.git
+              branch: logan-search
               backend_port: 8000
               context: brc
-              # Standalone Next app under sites/brc-analytics; the root Next
-              # app was decommissioned upstream, so nothing exports to out/.
+              # Standalone Next app under sites/brc-analytics -- logan-search
+              # is rebased onto main, so the default build-dev:brc script and
+              # the split export path both apply, same as any other brc env.
               frontend_out_dir: sites/brc-analytics/out
               # Keycloak SSO -- 'galaxy-test' realm / 'dev-brc-analytics' client
               # (provisioned in infrastructure-playbook). Secret lives in vault.
@@ -84,20 +83,21 @@ all:
               app_db_password: "{{ vault_app_db_password_dev }}"
               # Show the Galaxy SSO login UI on dev (baked into the frontend build)
               frontend_login_enabled: true
-              # --- Logan/kmindex, PARKED (see the branch note above) ---
-              # All three reference things that do not exist yet, and each one
-              # fails the play for this host on its own: the vault key is not in
-              # group_vars/all/vault.yaml, and sra_mirror_host_path is asserted
-              # to be a real file before the build runs. The plumbing they feed
-              # (api.env.j2, the read-only bind mount, the enablement gate) is
-              # already in place and inert without them -- un-comment all three
-              # together once the key is added and the mirror is on the VM.
+              # Logan/kmindex search. Confirmed to run against Galaxy Test.
+              # The key is a SERVICE ACCOUNT credential -- every visitor's
+              # kmindex job lands in that one account -- so it lives in vault.
               #
-              # CONFIRM which Galaxy should run these jobs before enabling; the
-              # URL below is the backend's own default, not a decision.
-              # galaxy_api_url: https://test.galaxyproject.org/api
-              # galaxy_api_key: "{{ vault_galaxy_api_key_dev }}"
-              # sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
+              # PREREQUISITES, both of which fail the play for this host if
+              # missing, and because the auto-update timer runs with no
+              # env_filter, a brc-dev failure also stops ga2-dev updating:
+              #   1. vault_galaxy_api_key_dev must exist (`make vault-edit`)
+              #   2. the DuckDB mirror must be a real file at the path below
+              galaxy_api_url: https://test.galaxyproject.org/api
+              galaxy_api_key: "{{ vault_galaxy_api_key_dev }}"
+              # Built externally (sra-poc/sra-slim.duckdb, schema_version 3),
+              # bind mounted read-only into the backend. Deliberately outside
+              # the release trees so it survives deploys.
+              sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
             - name: ga2-dev
               domain: dev.genomeark2.org
               branch: main
