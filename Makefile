@@ -28,7 +28,7 @@ define with-sudo
 endef
 
 .PHONY: setup bootstrap deploy deploy-brc-prod deploy-brc-prod-build deploy-brc-prod-publish deploy-ga2-prod deploy-brc-dev deploy-brc-dev-build deploy-brc-dev-publish deploy-ga2-dev update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev rebuild auto-update status restart
-.PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help fetch-images check-envs
+.PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help fetch-images check-envs app-db-backup
 
 # --- Setup ---
 
@@ -106,6 +106,12 @@ rebuild:
 
 auto-update:
 	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-auto-update.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
+
+# Host-level systemd timer, so this needs root -- which is exactly why it is not
+# on the deploy path any more. Run it when setting a host up, and again whenever
+# the schedule, retention, or enable flag changes.
+app-db-backup:
+	$(call with-sudo,$(ANSIBLE_PLAYBOOK) playbook-app-db-backup.yaml --limit=$(HOSTNAME) $(EXTRA_ARGS))
 
 # --- Validation ---
 
@@ -215,6 +221,7 @@ help:
 	@echo "  deploy-brc-{prod,dev}-publish - Atomic swap to the staged release + start backend"
 	@echo "  rebuild       - Force full rebuild and restart"
 	@echo "  auto-update   - Install/refresh auto-update systemd timer"
+	@echo "  app-db-backup - Install/refresh the nightly app-db backup timer (needs sudo)"
 	@echo "  fetch-images  - Refresh organism images from the bucket (ENV=<name> to scope)"
 	@echo "  check-envs    - Verify each env's build settings against the branch it tracks"
 	@echo "  status        - Check service status"

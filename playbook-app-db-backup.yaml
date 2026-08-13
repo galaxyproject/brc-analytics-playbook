@@ -1,0 +1,35 @@
+# App DB Backups Playbook -- install/refresh the nightly pg_dump timer.
+#
+# Host-level systemd plumbing, so it needs root, which is why it is its own
+# target rather than part of deploy. It used to run at the end of the deploy
+# play, and that single escalating task was the only reason `make deploy-*`
+# needed sudo at all -- the deploy path is otherwise unprivileged by design
+# (see the header of tasks/deploy-environment.yaml). Worse, it ran last, so on
+# a host where the service user has no passwordless sudo it failed *after* a
+# full Next build, leaving a staged release and a red playbook run.
+#
+# Same shape as `make auto-update`: run it once when setting a host up, and
+# again whenever the schedule, retention, or the enable flag changes. The units
+# it writes are root-owned; the backup itself runs as brc_user, who already has
+# Docker access, so it does not matter which account invokes this.
+#
+# Usage:
+#   make app-db-backup        # prompts for sudo
+---
+- name: Set up app database backups
+  hosts: all
+
+  tasks:
+    - name: Install the app-db backup timer
+      ansible.builtin.include_tasks: tasks/app-db-backup.yaml
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: >-
+          app-db backup timer {{ 'installed and enabled'
+          if (app_db_backup_enabled | default(true))
+          else 'disabled' }}.
+          Schedule: {{ app_db_backup_schedule }},
+          retention: {{ app_db_backup_retention_days }} days,
+          directory: {{ app_db_backup_dir }}.
+          Check with: systemctl list-timers 'brc-app-db-backup*'

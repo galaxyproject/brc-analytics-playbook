@@ -228,10 +228,13 @@
       become: true
       when: ssl_mode | default('letsencrypt') == 'letsencrypt' and brc_environments is not defined
 
-    # App database backups (only where the persistent DB exists)
-    - name: Set up app database backups (single-env)
-      ansible.builtin.include_tasks: tasks/app-db-backup.yaml
-      when: brc_environments is not defined and (brc_keycloak_client_id | default(''))
+    # App database backups moved to `make app-db-backup`
+    # (playbook-app-db-backup.yaml). They install a host-level systemd timer and
+    # so need root, and this was the ONLY escalating step on the deploy path --
+    # which is otherwise unprivileged by design and meant to run as the service
+    # user. It also ran last, so on a host where that user has no passwordless
+    # sudo it failed *after* a full Next build. It is host-level and idempotent,
+    # so it belongs beside `make auto-update`, not in every deploy.
 
     - name: Display deployment completion message (single-env)
       ansible.builtin.debug:
@@ -258,11 +261,6 @@
         loop_var: env
         label: "{{ env.name }}"
       when: brc_environments is defined and (env_filter is not defined or env.name == env_filter)
-
-    # App database backups -- one host-level timer covering all DB-enabled envs
-    - name: Set up app database backups (multi-env)
-      ansible.builtin.include_tasks: tasks/app-db-backup.yaml
-      when: brc_environments is defined
 
     - name: Display deployment completion message (multi-env)
       ansible.builtin.debug:
