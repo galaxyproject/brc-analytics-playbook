@@ -8,15 +8,10 @@ brc_repo_branch: main
 
 # npm build script for the default (brc) site.
 #
-# This default serves the PRODUCTION environments, which track the `production`
-# branch -- still pre-split, so the root Next app and the old `build:prod` name
-# are correct there. `main` renamed these to build-<env>:<site> as part of the
-# sites/ split; group_vars/development already uses the new name.
-#
-# FLIP THIS (and the prod frontend_out_dir values in inventory) in the same
-# change that promotes main -> production, or the first prod deploy after the
-# release fails on "Missing script".
-brc_build_script: "build:prod"
+# Both deploy branches now carry the sites/ split (production picked it up in
+# Release v0.29.0), so every environment builds a standalone app under sites/
+# and the scripts are all named build-<env>:<site>.
+brc_build_script: "build-prod:brc"
 
 # Paths
 brc_deploy_dir: /opt/brc-analytics

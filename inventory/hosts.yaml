@@ -22,10 +22,9 @@ all:
               branch: production
               backend_port: 8000
               context: brc
-              # PRODUCTION branch is still pre-split -- the root Next app is
-              # intact there and exports to out/. Flip to sites/brc-analytics
-              # /out (and brc_build_script in group_vars/all) next release.
-              frontend_out_dir: out
+              # Standalone Next app under sites/brc-analytics; production
+              # picked up the split in Release v0.29.0.
+              frontend_out_dir: sites/brc-analytics/out
               # Keycloak SSO -- 'galaxy' realm / 'brc-analytics' client
               # (provisioned in infrastructure-playbook). Secret lives in vault.
               keycloak_realm: galaxy
@@ -39,10 +38,9 @@ all:
               context: ga2
               build_script: "build-prod:ga2"
               catalog_build_script: "build-ga2-db"
-              # PRODUCTION branch is still pre-split: `build-prod:ga2` there is
-              # a plain `next build`, so the export lands at the repo root.
-              # Flip to sites/ga2/out once main -> production has the split.
-              frontend_out_dir: out
+              # Standalone Next app under sites/ga2; production picked up the
+              # split in Release v0.29.0.
+              frontend_out_dir: sites/ga2/out
               catalog_source_dir: catalog/ga2/source/
               organism_images: ga2
               # Skip cert acquisition; install cert manually then flip off
