@@ -68,7 +68,7 @@ all:
               # mismatch and revert the deploy. Re-run `make auto-update` after
               # changing it so the script regenerates.
               repo_url: https://github.com/dannon/brc-analytics.git
-              branch: logan-search
+              branch: logan-search-rebased
               backend_port: 8000
               context: brc
               # Standalone Next app under sites/brc-analytics -- logan-search
