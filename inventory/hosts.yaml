@@ -32,7 +32,7 @@ all:
               keycloak_client_secret: "{{ vault_keycloak_brc_prod_client_secret }}"
               app_db_password: "{{ vault_app_db_password_prod }}"
             - name: ga2-prod
-              domain: genomeark2.org   # TODO: confirm -- apex currently aliases CloudFront
+              domain: genomeark2.org
               branch: production
               backend_port: 8001
               context: ga2
@@ -43,8 +43,6 @@ all:
               frontend_out_dir: sites/ga2/out
               catalog_source_dir: catalog/ga2/source/
               organism_images: ga2
-              # Skip cert acquisition; install cert manually then flip off
-              ssl_skip: true
 
     development:
       hosts:
