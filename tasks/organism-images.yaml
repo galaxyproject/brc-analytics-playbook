@@ -20,6 +20,25 @@
 #
 # No-op for environments that don't set `organism_images`.
 ---
+# The mirror dir is created AND SELinux-labelled by bootstrap, which needs
+# privileges this play does not have. Creating it here would leave it
+# unlabelled and nginx would 403 every image, so fail with something
+# actionable instead of the sync's PermissionError traceback.
+- name: "Stat organism image mirror dir ({{ env.name }})"
+  ansible.builtin.stat:
+    path: "{{ organism_images_dir }}/{{ env.organism_images }}"
+  register: organism_images_dir_stat
+  when: env.organism_images is defined
+
+- name: "Assert organism image mirror dir exists ({{ env.name }})"
+  ansible.builtin.assert:
+    that: organism_images_dir_stat.stat.isdir | default(false)
+    fail_msg: >-
+      {{ organism_images_dir }}/{{ env.organism_images }} is missing. It is
+      created and SELinux-labelled by bootstrap -- run `make bootstrap` as the
+      operator (not {{ brc_user }}, which cannot sudo), then retry.
+  when: env.organism_images is defined
+
 - name: "Sync organism images ({{ env.name }})"
   ansible.builtin.script: >
     files/sync-organism-images.py
