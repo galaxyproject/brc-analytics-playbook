@@ -262,10 +262,13 @@
     test -d "$rel"
     ln -sfn "$rel" current
     cur="$(readlink current)"
-    ls -1dt releases/*/ 2>/dev/null | sed 's:/*$::' \
+    # grep exits 1 when it filters out every line -- exactly the first deploy,
+    # where the only release IS current. Under pipefail that failed the publish
+    # after the swap had already happened.
+    stale="$(ls -1dt releases/*/ 2>/dev/null | sed 's:/*$::' \
       | grep -vx "$cur" \
-      | tail -n +{{ releases_keep | int }} \
-      | xargs -r rm -rf
+      | tail -n +{{ releases_keep | int }} || true)"
+    if [ -n "$stale" ]; then printf '%s\n' "$stale" | xargs -r rm -rf; fi
   args:
     chdir: "{{ env_deploy_dir }}"
   changed_when: true
