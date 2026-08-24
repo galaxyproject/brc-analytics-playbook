@@ -55,6 +55,25 @@
 
 # --- Build phase (skipped in publish mode, which ships an already-built release) ---
 
+# bootstrap seeds a fresh env with releases/_placeholder and a 'current'
+# symlink so nginx has a valid root before anything is deployed. That leaves
+# the deploy dir non-empty, and ansible.builtin.git shells out to `git clone`
+# when there is no .git -- which refuses a non-empty destination. Without this,
+# the first deploy of every bootstrapped env fails. Only ever removes the
+# placeholder: a real checkout has .git, and an _adopt seed implies one too.
+- name: "Clear bootstrap placeholder before initial clone ({{ env.name }})"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    d={{ env_deploy_dir | quote }}
+    [ -d "$d" ] || exit 0
+    cd "$d"
+    if [ ! -e .git ] && [ "$(readlink current 2>/dev/null || true)" = "releases/_placeholder" ]; then
+      rm -rf releases/_placeholder current
+      rmdir releases 2>/dev/null || true
+    fi
+  changed_when: false
+  when: deploy_mode | default('full') != 'publish'
+
 - name: "Clone or update repository ({{ env.name }})"
   ansible.builtin.git:
     repo: "{{ env_repo_url }}"
