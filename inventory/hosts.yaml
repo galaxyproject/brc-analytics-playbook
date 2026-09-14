@@ -51,16 +51,9 @@ all:
           brc_environments:
             - name: brc-dev
               domain: dev.brc-analytics.org
-              # Logan preview. `feat/logan-search` is the integration branch for
-              # the whole Logan stack -- kmindex search, per-user Galaxy jobs,
-              # the assistant handoff, and the cohort map -- collapsed onto the
-              # single branch behind PR #1716. That branch is the one thing to
-              # follow now: `logan-deploy` and the three feature branches it
-              # was assembled from are retired. It lives on the dannon fork,
-              # not galaxyproject, so this entry overrides the repo it pulls
-              # from -- the rest of the host still tracks galaxyproject.
-              # Revert repo_url + branch (and the build settings below) once the
-              # feature merges upstream.
+              # Tracks galaxyproject main like every other env. The Logan
+              # preview that overrode repo_url and branch here merged upstream
+              # in galaxyproject/brc-analytics#1716.
               #
               # Set the branch HERE, never via `-e brc_repo_branch=...`:
               # brc-auto-update.sh.j2 bakes `{{ env.branch }}` in per
@@ -68,13 +61,11 @@ all:
               # watching origin/main, and the 3-hourly timer would see a
               # mismatch and revert the deploy. Re-run `make auto-update` after
               # changing it so the script regenerates.
-              repo_url: https://github.com/dannon/brc-analytics.git
-              branch: feat/logan-search
+              branch: main
               backend_port: 8000
               context: brc
-              # Standalone Next app under sites/brc-analytics -- feat/logan-search
-              # is rebased onto main, so the default build-dev:brc script and
-              # the split export path both apply, same as any other brc env.
+              # Standalone Next app under sites/brc-analytics, so the default
+              # build-dev:brc script and the split export path apply.
               frontend_out_dir: sites/brc-analytics/out
               # Keycloak SSO -- 'galaxy-test' realm / 'dev-brc-analytics' client
               # (provisioned in infrastructure-playbook). Secret lives in vault.
@@ -85,11 +76,11 @@ all:
               # Show the Galaxy SSO login UI on dev (baked into the frontend build)
               frontend_login_enabled: true
               # Logan/kmindex search. Confirmed to run against Galaxy Test.
-              # The key is a SERVICE ACCOUNT credential, and since this branch
-              # it is the ANONYMOUS path only: a signed-in visitor's jobs run
-              # under their own Galaxy bearer token, in their own account, once
-              # they have linked it. Anonymous jobs still share this one
-              # account, so the key stays required and stays in vault.
+              # The key is a SERVICE ACCOUNT credential for the ANONYMOUS path
+              # only: a signed-in visitor's jobs run under their own Galaxy
+              # bearer token, in their own account, once they have linked it.
+              # Anonymous jobs still share this one account, so the key stays
+              # required and stays in vault.
               #
               # PREREQUISITES, both of which fail the play for this host if
               # missing, and because the auto-update timer runs with no
@@ -100,9 +91,9 @@ all:
               galaxy_api_key: "{{ vault_galaxy_api_key_dev }}"
               # Built externally (sra-poc/sra-slim.duckdb, schema_version 3),
               # bind mounted read-only into the backend. Deliberately outside
-              # the release trees so it survives deploys, and every branch this
-              # env has pointed at reads it with the same code -- the existing
-              # file is fine and does not need rebuilding or re-copying.
+              # the release trees so it survives deploys, and main reads it with
+              # the same code the Logan preview did -- the existing file is fine
+              # and does not need rebuilding or re-copying.
               #
               # The map's coordinate layer wants schema_version 6, which this
               # file is not. That degrades on purpose: the coordinates
