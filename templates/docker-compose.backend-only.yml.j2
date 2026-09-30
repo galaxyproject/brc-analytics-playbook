@@ -8,6 +8,10 @@ services:
   frontend:
     profiles:
       - disabled
+  # The base compose file hard-codes its own maxmemory for local runs. A
+  # command is a scalar, so this replaces it outright -- keep --appendonly.
+  redis:
+    command: redis-server --appendonly yes --maxmemory {{ redis_maxmemory }} --maxmemory-policy {{ redis_maxmemory_policy }}
   backend:
     # !override fully replaces the ports list from the base compose file.
     # Without this, Compose merges and the base's "8000:8000" (binding

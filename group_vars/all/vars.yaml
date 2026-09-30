@@ -78,7 +78,11 @@ health_check_retries: 30
 health_check_delay: 10
 
 # Redis
-redis_maxmemory: 256mb
+# A kmindex aggregate over every index is ~4.5 MB and lives a day (an hour for
+# partner jobs). 256mb left too little room before LRU started evicting users'
+# cached results and the rate-limit counters. Dev (7.7 GiB, no swap) had
+# 2.7 GiB available with both envs up.
+redis_maxmemory: 768mb
 redis_maxmemory_policy: allkeys-lru
 
 # Auto-update (disabled by default, enabled for dev)
