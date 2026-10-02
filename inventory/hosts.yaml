@@ -51,9 +51,16 @@ all:
           brc_environments:
             - name: brc-dev
               domain: dev.brc-analytics.org
-              # Tracks galaxyproject main like every other env. The Logan
-              # preview that overrode repo_url and branch here merged upstream
-              # in galaxyproject/brc-analytics#1716.
+              # Logan partner API preview. `feat/logan-partner-api` is PR #1784,
+              # stacked on the kmindex 429 fix in #1791 (collection download,
+              # kmindex 0.7.0), so this one branch carries both. It lives on the
+              # dannon fork, not galaxyproject, so this entry overrides the repo
+              # it pulls from -- the rest of the host still tracks galaxyproject.
+              # The partner routes stay off until PARTNER_API_ENABLED is set.
+              # #1784 adds migration 20260929_0006; don't point this back at main
+              # until #1784 has merged, or the backend will find the database at
+              # a revision main doesn't know. Revert repo_url + branch once it
+              # merges upstream.
               #
               # Set the branch HERE, never via `-e brc_repo_branch=...`:
               # brc-auto-update.sh.j2 bakes `{{ env.branch }}` in per
@@ -61,7 +68,8 @@ all:
               # watching origin/main, and the 3-hourly timer would see a
               # mismatch and revert the deploy. Re-run `make auto-update` after
               # changing it so the script regenerates.
-              branch: main
+              repo_url: https://github.com/dannon/brc-analytics.git
+              branch: feat/logan-partner-api
               backend_port: 8000
               context: brc
               # Standalone Next app under sites/brc-analytics, so the default
