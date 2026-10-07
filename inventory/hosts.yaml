@@ -108,6 +108,16 @@ all:
               # capability closes on its own and the country choropleth keeps
               # serving, so points stay absent until a v6 file is copied here.
               sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
+              # Logan partner API for the logan-search.org team (PR #1784).
+              # At its 60/hour submit budget a partner keeps ~540 MB of merged
+              # aggregates in Redis (2 h each, ~4.5 MB for an all-index search),
+              # so this env gets 1gb; idempotency and the rate-limit counters
+              # only hold while Redis isn't evicting. The keys entry is only the
+              # key's hash (vault); the plaintext went to the partner.
+              redis_maxmemory: 1gb
+              partner_api_enabled: true
+              partner_api_keys: "{{ vault_partner_api_keys_dev }}"
+              partner_api_sunset: "2027-03-31"
             - name: ga2-dev
               domain: dev.genomeark2.org
               branch: main

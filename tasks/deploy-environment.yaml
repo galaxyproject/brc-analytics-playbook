@@ -32,6 +32,10 @@
     brc_galaxy_api_url: "{{ env.galaxy_api_url | default(brc_galaxy_api_url) }}"
     brc_galaxy_api_key: "{{ env.galaxy_api_key | default('') }}"
     brc_sra_mirror_host_path: "{{ env.sra_mirror_host_path | default('') }}"
+    brc_redis_maxmemory: "{{ env.redis_maxmemory | default(redis_maxmemory) }}"
+    brc_partner_api_enabled: "{{ env.partner_api_enabled | default(false) }}"
+    brc_partner_api_keys: "{{ env.partner_api_keys | default('') }}"
+    brc_partner_api_sunset: "{{ env.partner_api_sunset | default('') }}"
 
 # Fail fast rather than after the build: Docker happily creates an empty
 # DIRECTORY at a bind-mount source that doesn't exist, which the backend then

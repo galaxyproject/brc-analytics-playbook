@@ -82,6 +82,8 @@ health_check_delay: 10
 # partner jobs). 256mb left too little room before LRU started evicting users'
 # cached results and the rate-limit counters. Dev (7.7 GiB, no swap) had
 # 2.7 GiB available with both envs up.
+# The default; an environment can override it with its own redis_maxmemory
+# (brc-dev does, for the partner API).
 redis_maxmemory: 768mb
 redis_maxmemory_policy: allkeys-lru
 
