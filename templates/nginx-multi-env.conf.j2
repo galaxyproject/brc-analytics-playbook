@@ -53,6 +53,7 @@ server {
         add_header Content-Type text/plain;
     }
 {% else %}
+{% if not (env.frontend_only | default(false)) %}
     location /api/ {
         alias /opt/brc-analytics-{{ env.name }}/current/api/;
         add_header Access-Control-Allow-Origin $cors_origin always;
@@ -61,15 +62,18 @@ server {
         try_files $uri =404;
     }
 
+{% endif %}
     location /api/v1 {
         proxy_pass http://backend-{{ env.name }};
     }
 
+{% if not (env.frontend_only | default(false)) %}
     location /ena/ {
         proxy_pass https://www.ebi.ac.uk/ena/;
         proxy_set_header Host www.ebi.ac.uk;
         proxy_ssl_server_name on;
     }
+{% endif %}
 
     location /health {
         access_log off;
@@ -162,6 +166,7 @@ server {
         add_header Content-Type text/plain;
     }
 {% else %}
+{% if not (env.frontend_only | default(false)) %}
     # Static API data files (from the Next.js build output)
     location /api/ {
         alias /opt/brc-analytics-{{ env.name }}/current/api/;
@@ -171,17 +176,21 @@ server {
         try_files $uri =404;
     }
 
-    # FastAPI proxy
+{% endif %}
+    # FastAPI proxy. A frontend_only env has no backend of its own: its
+    # backend_port is another env's, so this reaches that env's API.
     location /api/v1 {
         proxy_pass http://backend-{{ env.name }};
     }
 
+{% if not (env.frontend_only | default(false)) %}
     # ENA upstream proxy
     location /ena/ {
         proxy_pass https://www.ebi.ac.uk/ena/;
         proxy_set_header Host www.ebi.ac.uk;
         proxy_ssl_server_name on;
     }
+{% endif %}
 
     location /health {
         access_log off;

@@ -36,6 +36,9 @@
     brc_partner_api_enabled: "{{ env.partner_api_enabled | default(false) }}"
     brc_partner_api_keys: "{{ env.partner_api_keys | default('') }}"
     brc_partner_api_sunset: "{{ env.partner_api_sunset | default('') }}"
+    # Frontend-only envs have no containers; nginx sends their /api/v1 to
+    # another env's backend. See update-environment.yaml.
+    env_frontend_only: "{{ env.frontend_only | default(false) | bool }}"
 
 # Fail fast rather than after the build: Docker happily creates an empty
 # DIRECTORY at a bind-mount source that doesn't exist, which the backend then
@@ -105,6 +108,7 @@
     chdir: "{{ env_deploy_dir }}"
   changed_when: true
   when:
+    - not (env_frontend_only | bool)
     - not (backend_only | default(false))
     - deploy_mode | default('full') != 'publish'
 
@@ -161,12 +165,14 @@
     src: templates/api.env.j2
     dest: "{{ env_backend_dir }}/api/.env"
     mode: "0600"
+  when: not (env_frontend_only | bool)
 
 - name: "Template docker-compose override ({{ env.name }})"
   ansible.builtin.template:
     src: templates/docker-compose.backend-only.yml.j2
     dest: "{{ env_backend_dir }}/docker-compose.override.yml"
     mode: "0644"
+  when: not (env_frontend_only | bool)
 
 - name: "Build backend image ({{ env.name }})"
   ansible.builtin.command:
@@ -174,6 +180,7 @@
     chdir: "{{ env_backend_dir }}"
   environment:
     APP_VERSION: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
+  when: not (env_frontend_only | bool)
 
 # --- Publish phase (skipped in build mode, which leaves the live release and the
 #     running containers untouched so a release can be staged off the cutover path) ---
@@ -184,14 +191,18 @@
     chdir: "{{ env_backend_dir }}"
   failed_when: false
   changed_when: false
-  when: deploy_mode | default('full') != 'build'
+  when:
+    - not (env_frontend_only | bool)
+    - deploy_mode | default('full') != 'build'
 
 - name: "Start Docker services ({{ env.name }})"
   ansible.builtin.command:
     cmd: docker compose -p brc-analytics-{{ env.name }} up -d
     chdir: "{{ env_backend_dir }}"
   register: docker_up
-  when: deploy_mode | default('full') != 'build'
+  when:
+    - not (env_frontend_only | bool)
+    - deploy_mode | default('full') != 'build'
 
 - name: "Wait for backend to be healthy ({{ env.name }})"
   ansible.builtin.uri:
@@ -201,7 +212,9 @@
   until: health_result.status == 200
   retries: 30
   delay: 5
-  when: deploy_mode | default('full') != 'build'
+  when:
+    - not (env_frontend_only | bool)
+    - deploy_mode | default('full') != 'build'
 
 # Flip the served 'current' symlink to the staged release in one atomic step
 # (after the backend is healthy), then prune to releases_keep -- the live target
