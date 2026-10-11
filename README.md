@@ -205,6 +205,24 @@ The build script name is coupled to the same thing, via `brc_build_script` (defa
 
 Frontend change detection deliberately watches the union of both layouts (`app/`, `pages/`, `public/`, `next.config.mjs` *and* `sites/`, `packages/`, plus `site-config/`, `catalog/`, `scripts/`, `package.json`, `tsconfig.json`). An unmatched pathspec is not an error, it is silently empty, and the task's `failed_when: false` turns that into "no frontend changes" -- so a stale path doesn't fail a deploy, it quietly stops doing one while every run still reports success. Keep the union honest in both directions when the app repo moves things.
 
+### Frontend-only environments (`frontend_only`)
+
+Some sites are just another static frontend over an API that already runs on the host. The Logan Search preview (`logan-dev`) is one: it has its own checkout and branch and its own domain, but its `/api/v1` is brc-dev's backend.
+
+```yaml
+- name: logan-dev
+  domain: logan.dev.brc-analytics.org
+  branch: logan-search-site
+  frontend_only: true
+  backend_port: 8000          # brc-dev's port: nginx proxies /api/v1 there
+  build_script: "build-dev:logan"
+  frontend_out_dir: sites/logan-search/out
+```
+
+Deploy and update build and publish the frontend as usual, and skip everything backend: no catalog build, no env file or compose override, no containers, no health wait. They also skip the version-drift check, which would compare the other env's backend version to this checkout's `package.json` and force a full rebuild every run. Its nginx server block serves the static root and `/api/v1` only, with no static `/api/` catalog alias and no `/ena/` proxy. Bootstrap needs nothing special; its per-env loops create the directory, placeholder release, SELinux label and cert like any other env.
+
+The frontend and the backend it calls can be on different branches, so check that the frontend's API calls exist on the backend's branch before pointing one at the other.
+
 ### Organism Images (ga2 / GenomeArk)
 
 The ga2 catalog points every assembly at `/organism_image/<species>.jpg`, but the app repo gitignores `public/organism_image/` — those ~360MB of JPEGs live in a public Jetstream bucket instead. A fresh checkout has none of them, so without this step the site renders with every organism image broken.

@@ -118,6 +118,25 @@ all:
               partner_api_enabled: true
               partner_api_keys: "{{ vault_partner_api_keys_dev }}"
               partner_api_sunset: "2027-03-31"
+            # Logan Search site preview (PR #1829). Frontend only: it has its
+            # own checkout of the fork branch, but no containers of its own --
+            # nginx sends its /api/v1 to brc-dev's backend, so backend_port is
+            # brc-dev's port, not a new one. That keeps the backend serving the
+            # logan-search.org partner API untouched by this branch. Searches
+            # run anonymously (no login on this site) and share brc-dev's
+            # Galaxy service account, Redis and rate limits.
+            #
+            # Until #1828 lands on brc-dev's branch, linked filters
+            # (?logan-filters=true) 404 on /summary here; everything else works
+            # against the current backend.
+            - name: logan-dev
+              domain: logan.dev.brc-analytics.org
+              repo_url: https://github.com/dannon/brc-analytics.git
+              branch: logan-search-site
+              frontend_only: true
+              backend_port: 8000
+              build_script: "build-dev:logan"
+              frontend_out_dir: sites/logan-search/out
             - name: ga2-dev
               domain: dev.genomeark2.org
               branch: main

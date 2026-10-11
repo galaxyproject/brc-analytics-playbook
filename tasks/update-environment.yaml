@@ -34,6 +34,12 @@
     brc_partner_api_enabled: "{{ env.partner_api_enabled | default(false) }}"
     brc_partner_api_keys: "{{ env.partner_api_keys | default('') }}"
     brc_partner_api_sunset: "{{ env.partner_api_sunset | default('') }}"
+    # A frontend-only env serves a static site whose /api/v1 nginx sends to
+    # another env's backend (its backend_port). It has no containers, so every
+    # backend step below is skipped -- including the version-drift check, which
+    # would otherwise compare that other env's backend to this checkout's
+    # package.json and force a full rebuild on every run.
+    env_frontend_only: "{{ env.frontend_only | default(false) | bool }}"
 
 # Fail fast rather than after the build: Docker happily creates an empty
 # DIRECTORY at a bind-mount source that doesn't exist, which the backend then
@@ -114,18 +120,23 @@
   register: running_version_result
   changed_when: false
   failed_when: false
-  when: not (backend_only | default(false))
+  when:
+    - not (env_frontend_only | bool)
+    - not (backend_only | default(false))
 
 - name: "Resolve running and target app versions ({{ env.name }})"
   ansible.builtin.set_fact:
     running_app_version: "{{ running_version_result.json.version | default('') }}"
     target_app_version: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
-  when: not (backend_only | default(false))
+  when:
+    - not (env_frontend_only | bool)
+    - not (backend_only | default(false))
 
 - name: "Force full rebuild baseline when deployed version drifted ({{ env.name }})"
   ansible.builtin.set_fact:
     last_update_commit: "{{ git_empty_tree }}"
   when:
+    - not (env_frontend_only | bool)
     - not (backend_only | default(false))
     - running_app_version != target_app_version
 
@@ -175,13 +186,17 @@
   register: catalog_changes
   changed_when: false
   failed_when: false
-  when: not (backend_only | default(false))
+  when:
+    - not (env_frontend_only | bool)
+    - not (backend_only | default(false))
 
 - name: "Rebuild catalog data ({{ env.name }})"
   ansible.builtin.command:
     cmd: npm run {{ env.catalog_build_script | default('build-brc-db') }}
     chdir: "{{ env_deploy_dir }}"
-  when: not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
+  when:
+    - not (env_frontend_only | bool)
+    - not (backend_only | default(false)) and (catalog_changes.stdout | default('') | length > 0 or force_rebuild | default(false))
 
 # The union of BOTH app layouts, on purpose. The dev environments track `main`,
 # where every site is a standalone Next app under sites/ sharing packages/; the
@@ -286,6 +301,7 @@
     dest: "{{ env_backend_dir }}/api/.env"
     mode: "0600"
   register: env_template
+  when: not (env_frontend_only | bool)
 
 - name: "Template docker-compose override ({{ env.name }})"
   ansible.builtin.template:
@@ -293,6 +309,7 @@
     dest: "{{ env_backend_dir }}/docker-compose.override.yml"
     mode: "0644"
   register: compose_template
+  when: not (env_frontend_only | bool)
 
 # Only the backend container is restarted, and only when it actually changed.
 # A frontend-only update published above never recreates the API container.
@@ -303,6 +320,7 @@
   register: backend_changes
   changed_when: false
   failed_when: false
+  when: not (env_frontend_only | bool)
 
 - name: "Build backend image ({{ env.name }})"
   ansible.builtin.command:
@@ -311,7 +329,9 @@
   environment:
     APP_VERSION: "{{ lookup('file', env_deploy_dir + '/package.json') | from_json | json_query('version') }}"
   register: backend_build
-  when: backend_changes.stdout | default('') | length > 0 or env_template.changed or compose_template.changed or (force_rebuild | default(false))
+  when:
+    - not (env_frontend_only | bool)
+    - backend_changes.stdout | default('') | length > 0 or env_template.changed or compose_template.changed or (force_rebuild | default(false))
 
 # Tolerate the slow-healthcheck race (backend cold-starts slower than a
 # dependent container's depends_on wait); the health check below is the gate.
@@ -319,7 +339,9 @@
   ansible.builtin.command:
     cmd: docker compose -p brc-analytics-{{ env.name }} up -d --force-recreate
     chdir: "{{ env_backend_dir }}"
-  when: backend_build.changed | default(false) or env_template.changed or compose_template.changed or (force_rebuild | default(false))
+  when:
+    - not (env_frontend_only | bool)
+    - backend_build.changed | default(false) or env_template.changed or compose_template.changed or (force_rebuild | default(false))
   register: docker_restart
   failed_when: false
 
@@ -328,6 +350,7 @@
     cmd: docker compose -p brc-analytics-{{ env.name }} up -d
     chdir: "{{ env_backend_dir }}"
   when:
+    - not (env_frontend_only | bool)
     - docker_restart is changed
     - docker_restart.rc | default(0) != 0
   failed_when: false
@@ -340,7 +363,9 @@
   until: health_result.status == 200
   retries: 30
   delay: 5
-  when: docker_restart.changed | default(false)
+  when:
+    - not (env_frontend_only | bool)
+    - docker_restart.changed | default(false)
 
 - name: "Record successful update commit ({{ env.name }})"
   ansible.builtin.copy:

@@ -93,10 +93,12 @@ def main():
                 problems.append(
                     f"{ref} exports to {expected!r} but frontend_out_dir={out!r}"
                 )
-        if cat_build not in scripts:
-            problems.append(f"catalog script {cat_build!r} does not exist on {ref}")
-        if git("cat-file", "-e", f"{ref}:{cat_src.rstrip('/')}").returncode != 0:
-            problems.append(f"catalog_source_dir {cat_src!r} is not in {ref}")
+        # A frontend-only env never builds a catalog (see update-environment.yaml).
+        if not e.get("frontend_only", False):
+            if cat_build not in scripts:
+                problems.append(f"catalog script {cat_build!r} does not exist on {ref}")
+            if git("cat-file", "-e", f"{ref}:{cat_src.rstrip('/')}").returncode != 0:
+                problems.append(f"catalog_source_dir {cat_src!r} is not in {ref}")
 
         present = [
             p for p in pathspec
