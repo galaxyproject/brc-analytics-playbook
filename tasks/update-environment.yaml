@@ -34,6 +34,7 @@
     brc_partner_api_enabled: "{{ env.partner_api_enabled | default(false) }}"
     brc_partner_api_keys: "{{ env.partner_api_keys | default('') }}"
     brc_partner_api_sunset: "{{ env.partner_api_sunset | default('') }}"
+    brc_partner_submit_rate_limit: "{{ env.partner_submit_rate_limit | default('') }}"
     # A frontend-only env serves a static site whose /api/v1 nginx sends to
     # another env's backend (its backend_port). It has no containers, so every
     # backend step below is skipped -- including the version-drift check, which
