@@ -118,10 +118,15 @@ all:
               partner_api_enabled: true
               partner_api_keys: "{{ vault_partner_api_keys_dev }}"
               partner_api_sunset: "2027-03-31"
-              # Raised from the backend's default of 60 for Pierre's Logan
-              # tutorial (Oct 16, 50-100 students). Redis peaked at 48 MB over
-              # the first 108 partner jobs, so the 1gb above still has room.
-              partner_submit_rate_limit: 120
+              # Raised for Pierre's Logan tutorial (Oct 16, up to ~150
+              # students, all through logan-search.org's one key). The real
+              # throttle that day is the 20-node Vista reservation; these just
+              # keep us from 429ing the class. logan-search.org polls each job
+              # every 10 s, so 150 queued jobs is ~900 requests/min against the
+              # default 300. Redis peaked at 48 MB over the first 108 partner
+              # jobs, and evicting an aggregate only costs a re-merge.
+              partner_submit_rate_limit: 1000
+              partner_rate_limit: 3000
             # Logan Search site preview (PR #1829). Frontend only: it has its
             # own checkout of the fork branch, but no containers of its own --
             # nginx sends its /api/v1 to brc-dev's backend, so backend_port is
