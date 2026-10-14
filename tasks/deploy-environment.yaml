@@ -36,6 +36,7 @@
     brc_partner_api_enabled: "{{ env.partner_api_enabled | default(false) }}"
     brc_partner_api_keys: "{{ env.partner_api_keys | default('') }}"
     brc_partner_api_sunset: "{{ env.partner_api_sunset | default('') }}"
+    brc_partner_submit_rate_limit: "{{ env.partner_submit_rate_limit | default('') }}"
     # Frontend-only envs have no containers; nginx sends their /api/v1 to
     # another env's backend. See update-environment.yaml.
     env_frontend_only: "{{ env.frontend_only | default(false) | bool }}"
