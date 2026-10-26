@@ -51,16 +51,9 @@ all:
           brc_environments:
             - name: brc-dev
               domain: dev.brc-analytics.org
-              # Logan partner API preview. `feat/logan-partner-api` is PR #1784,
-              # stacked on the kmindex 429 fix in #1791 (collection download,
-              # kmindex 0.7.0), so this one branch carries both. It lives on the
-              # dannon fork, not galaxyproject, so this entry overrides the repo
-              # it pulls from -- the rest of the host still tracks galaxyproject.
-              # The partner routes stay off until PARTNER_API_ENABLED is set.
-              # #1784 adds migration 20260929_0006; don't point this back at main
-              # until #1784 has merged, or the backend will find the database at
-              # a revision main doesn't know. Revert repo_url + branch once it
-              # merges upstream.
+              # Tracks main. It ran the Logan partner API from the dannon fork's
+              # `feat/logan-partner-api` until #1784 and its follow-ups (#1867)
+              # merged; everything that branch carried is on main.
               #
               # Set the branch HERE, never via `-e brc_repo_branch=...`:
               # brc-auto-update.sh.j2 bakes `{{ env.branch }}` in per
@@ -68,8 +61,7 @@ all:
               # watching origin/main, and the 3-hourly timer would see a
               # mismatch and revert the deploy. Re-run `make auto-update` after
               # changing it so the script regenerates.
-              repo_url: https://github.com/dannon/brc-analytics.git
-              branch: feat/logan-partner-api
+              branch: main
               backend_port: 8000
               context: brc
               # Standalone Next app under sites/brc-analytics, so the default
@@ -127,21 +119,14 @@ all:
               # jobs, and evicting an aggregate only costs a re-merge.
               partner_submit_rate_limit: 1000
               partner_rate_limit: 3000
-            # Logan Search site preview (PR #1829). Frontend only: it has its
-            # own checkout of the fork branch, but no containers of its own --
-            # nginx sends its /api/v1 to brc-dev's backend, so backend_port is
-            # brc-dev's port, not a new one. That keeps the backend serving the
-            # logan-search.org partner API untouched by this branch. Searches
-            # run anonymously (no login on this site) and share brc-dev's
-            # Galaxy service account, Redis and rate limits.
-            #
-            # Until #1828 lands on brc-dev's branch, linked filters
-            # (?logan-filters=true) 404 on /summary here; everything else works
-            # against the current backend.
+            # Logan Search site preview. Frontend only: it has its own checkout
+            # of main, but no containers of its own -- nginx sends its /api/v1
+            # to brc-dev's backend, so backend_port is brc-dev's port, not a new
+            # one. Searches run anonymously (no login on this site) and share
+            # brc-dev's Galaxy service account, Redis and rate limits.
             - name: logan-dev
               domain: logan.dev.brc-analytics.org
-              repo_url: https://github.com/dannon/brc-analytics.git
-              branch: logan-search-site
+              branch: main
               frontend_only: true
               backend_port: 8000
               build_script: "build-dev:logan"
