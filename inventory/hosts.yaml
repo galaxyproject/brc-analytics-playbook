@@ -100,7 +100,8 @@ all:
               # capability closes on its own and the country choropleth keeps
               # serving, so points stay absent until a v6 file is copied here.
               sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
-              # Logan partner API for the logan-search.org team (PR #1784).
+              # Logan partner API (PR #1784). logan-search.org and Ensembl each
+              # have their own key; budgets and rate limits are per partner.
               # At its 60/hour submit budget a partner keeps ~540 MB of merged
               # aggregates in Redis (2 h each, ~4.5 MB for an all-index search),
               # so this env gets 1gb; idempotency and the rate-limit counters
