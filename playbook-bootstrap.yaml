@@ -76,6 +76,10 @@
         groups: docker
         append: true
 
+    - name: Configure swap
+      ansible.builtin.include_tasks: tasks/swap.yaml
+      when: brc_swap_size_mb | int > 0
+
     # Deployment directory (single-environment hosts)
     - name: Create deployment directory
       ansible.builtin.file:

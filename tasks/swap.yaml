@@ -1,0 +1,40 @@
+---
+# A swapfile so a memory squeeze slows the host down instead of locking it
+# up. brc-analytics-dev (8 GB, no swap) wedged on 2026-10-30 when a Next build
+# landed on top of a 2.9 GB backend: kswapd pinned three cores and SSH barely
+# answered. Low swappiness keeps it a cushion, not something normal running
+# leans on. An existing /swapfile is left alone, whatever its size.
+
+# dd rather than fallocate: a preallocated file isn't a valid swapfile on
+# every filesystem.
+- name: Create the swapfile
+  ansible.builtin.shell:
+    cmd: >-
+      dd if=/dev/zero of=/swapfile bs=1M count={{ brc_swap_size_mb }}
+      && chmod 600 /swapfile && mkswap /swapfile
+    creates: /swapfile
+
+- name: Check active swap
+  ansible.builtin.command:
+    cmd: swapon --show=NAME --noheadings
+  register: active_swap
+  changed_when: false
+
+- name: Turn the swapfile on
+  ansible.builtin.command:
+    cmd: swapon /swapfile
+  changed_when: true
+  when: "'/swapfile' not in active_swap.stdout_lines"
+
+- name: Keep the swapfile across reboots
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^/swapfile\s'
+    line: "/swapfile none swap defaults 0 0"
+
+- name: Lower swappiness
+  ansible.posix.sysctl:
+    name: vm.swappiness
+    value: "{{ brc_swappiness }}"
+    sysctl_file: /etc/sysctl.d/90-swappiness.conf
+    reload: true

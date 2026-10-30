@@ -25,6 +25,10 @@ brc_group: brc-admin
 # Docker
 docker_compose_project: brc-analytics
 
+# Swapfile created by bootstrap (tasks/swap.yaml); 0 skips it.
+brc_swap_size_mb: 4096
+brc_swappiness: 10
+
 # Node.js version for catalog builds
 nodejs_version: "22"
 
