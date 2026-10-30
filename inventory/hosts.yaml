@@ -31,6 +31,28 @@ all:
               keycloak_client_id: brc-analytics
               keycloak_client_secret: "{{ vault_keycloak_brc_prod_client_secret }}"
               app_db_password: "{{ vault_app_db_password_prod }}"
+              # Logan/kmindex search and the partner API, moved here from
+              # brc-dev so the partners stop depending on a dev box. Same
+              # Galaxy Test service account (brc-bot) as dev: the Logan indexes
+              # only exist on Galaxy Test. Login stays off on prod
+              # (frontend_login_enabled unset), so every search runs as brc-bot.
+              # A Galaxy key also makes /logan-search reachable by URL; the nav
+              # entry stays off. Both prerequisites fail the play if missing:
+              # the vault key, and a real mirror file at the path below
+              # (copied from dev, same build).
+              galaxy_api_url: https://test.galaxyproject.org/api
+              galaxy_api_key: "{{ vault_galaxy_api_key_dev }}"
+              sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
+              # Partner keys are the same entries as dev (logan-search.org and
+              # Ensembl keep their keys and only change the base URL), and the
+              # limits match dev so the move doesn't tighten anything. See the
+              # brc-dev entry for the Redis and rate-limit reasoning.
+              redis_maxmemory: 1gb
+              partner_api_enabled: true
+              partner_api_keys: "{{ vault_partner_api_keys_dev }}"
+              partner_api_sunset: "2027-03-31"
+              partner_submit_rate_limit: 1000
+              partner_rate_limit: 3000
             - name: ga2-prod
               domain: genomeark2.org
               branch: production
