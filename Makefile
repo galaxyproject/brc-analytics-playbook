@@ -27,7 +27,7 @@ define with-sudo
 	@bash -c '(while sudo -v; do sleep 55; done) & PID=$$!; trap "kill $$PID 2>/dev/null" EXIT; $(1)'
 endef
 
-.PHONY: setup bootstrap deploy deploy-brc-prod deploy-brc-prod-build deploy-brc-prod-publish deploy-ga2-prod deploy-brc-dev deploy-brc-dev-build deploy-brc-dev-publish deploy-ga2-dev deploy-logan-dev update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev update-logan-dev rebuild auto-update status restart
+.PHONY: setup bootstrap deploy deploy-brc-prod deploy-brc-prod-build deploy-brc-prod-publish deploy-ga2-prod deploy-brc-dev deploy-brc-dev-build deploy-brc-dev-publish deploy-ga2-dev deploy-logan-dev deploy-logan-prod update update-brc-prod update-ga2-prod update-brc-dev update-ga2-dev update-logan-dev update-logan-prod rebuild auto-update status restart
 .PHONY: requirements check vault-edit vault-create cert-renew cert-generate logs shell help fetch-images check-envs app-db-backup
 
 # --- Setup ---
@@ -72,6 +72,9 @@ deploy-ga2-dev:
 deploy-logan-dev:
 	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=logan-dev $(EXTRA_ARGS)
 
+deploy-logan-prod:
+	$(ANSIBLE_PLAYBOOK) playbook-deploy.yaml --limit=$(HOSTNAME) -e env_filter=logan-prod $(EXTRA_ARGS)
+
 # Prebuilt cutover (deploy path): -build stages a release while the old one
 # keeps serving; -publish flips the 'current' symlink to it and starts the
 # backend. Lets the heavy Next build run off the cutover's critical path.
@@ -106,6 +109,9 @@ update-ga2-dev:
 
 update-logan-dev:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=logan-dev $(EXTRA_ARGS)
+
+update-logan-prod:
+	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e env_filter=logan-prod $(EXTRA_ARGS)
 
 rebuild:
 	$(ANSIBLE_PLAYBOOK) playbook-update.yaml --limit=$(HOSTNAME) -e force_rebuild=true $(EXTRA_ARGS)
@@ -223,8 +229,10 @@ help:
 	@echo "  update-brc-dev     - Update brc env on dev TACC host"
 	@echo "  update-ga2-dev     - Update ga2 env on dev TACC host"
 	@echo "  update-logan-dev   - Update the Logan Search frontend on dev TACC host"
+	@echo "  update-logan-prod  - Update the Logan Search frontend on prod TACC host"
 	@echo "  deploy-{brc,ga2}-{prod,dev} - First-time deploy of one env"
 	@echo "  deploy-logan-dev   - First-time deploy of the Logan Search frontend"
+	@echo "  deploy-logan-prod  - First-time deploy of the Logan Search frontend on prod"
 	@echo "  deploy-brc-{prod,dev}-build   - Prebuild+stage a release (old one keeps serving)"
 	@echo "  deploy-brc-{prod,dev}-publish - Atomic swap to the staged release + start backend"
 	@echo "  rebuild       - Force full rebuild and restart"
