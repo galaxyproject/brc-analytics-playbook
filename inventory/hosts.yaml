@@ -71,7 +71,14 @@ all:
             # account, Redis and rate limits.
             - name: logan-prod
               domain: logan.brc-analytics.org
-              branch: production
+              # Off production until the next release carries the build.sh
+              # change: production's build-prod:logan refuses to run. Point this
+              # back at galaxyproject + production once it has.
+              repo_url: https://github.com/dannon/brc-analytics.git
+              branch: logan-prod-launch
+              # Pooled into the brc-analytics.org Plausible site; filter on the
+              # logan.brc-analytics.org hostname there.
+              plausible_domain: brc-analytics.org
               frontend_only: true
               backend_port: 8000
               build_script: "build-prod:logan"
