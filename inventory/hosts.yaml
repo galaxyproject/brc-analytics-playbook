@@ -32,16 +32,17 @@ all:
               keycloak_client_secret: "{{ vault_keycloak_brc_prod_client_secret }}"
               app_db_password: "{{ vault_app_db_password_prod }}"
               # Logan/kmindex search and the partner API, moved here from
-              # brc-dev so the partners stop depending on a dev box. Same
-              # Galaxy Test service account (brc-bot) as dev: the Logan indexes
-              # only exist on Galaxy Test. Login stays off on prod
-              # (frontend_login_enabled unset), so every search runs as brc-bot.
-              # A Galaxy key also makes /logan-search reachable by URL; the nav
-              # entry stays off. Both prerequisites fail the play if missing:
-              # the vault key, and a real mirror file at the path below
-              # (copied from dev, same build).
-              galaxy_api_url: https://test.galaxyproject.org/api
-              galaxy_api_key: "{{ vault_galaxy_api_key_dev }}"
+              # brc-dev so the partners stop depending on a dev box. Prod runs
+              # on usegalaxy.org (kmindex_query 0.7.1 and the Logan indexes are
+              # installed there) as its brc-bot service account; dev stays on
+              # Galaxy Test. Login stays off on prod (frontend_login_enabled
+              # unset), so every search runs as brc-bot. A Galaxy key also
+              # makes /logan-search reachable by URL; the nav entry stays off.
+              # Both prerequisites fail the play if missing: the vault key, and
+              # a real mirror file at the path below (copied from dev, same
+              # build).
+              galaxy_api_url: https://usegalaxy.org/api
+              galaxy_api_key: "{{ vault_galaxy_api_key_main }}"
               sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
               # Partner keys are the same entries as dev (logan-search.org and
               # Ensembl keep their keys and only change the base URL), and the
