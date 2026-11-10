@@ -43,6 +43,11 @@ all:
               # build).
               galaxy_api_url: https://usegalaxy.org/api
               galaxy_api_key: "{{ vault_galaxy_api_key_main }}"
+              # Searches submitted on Test before the move (16-character job
+              # ids, including partners' searches from dev) are still read
+              # there, on the same brc-bot key dev uses.
+              galaxy_legacy_api_url: https://test.galaxyproject.org/api
+              galaxy_legacy_api_key: "{{ vault_galaxy_api_key_dev }}"
               sra_mirror_host_path: /opt/brc-analytics-data/sra-mirror.duckdb
               # Partner keys are the same entries as dev (logan-search.org and
               # Ensembl keep their keys and only change the base URL), and the
